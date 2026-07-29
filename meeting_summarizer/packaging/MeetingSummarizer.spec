@@ -21,6 +21,7 @@ datas = [(os.path.join(SRC_DIR, "templates"), "templates")]
 binaries = []
 hiddenimports = [
     "app_paths",
+    "settings",
     "web",
     "transcriber",
     "summarizer",

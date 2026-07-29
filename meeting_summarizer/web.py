@@ -13,17 +13,17 @@ from datetime import datetime
 from fastapi import FastAPI, UploadFile, File, HTTPException, Form, WebSocket, WebSocketDisconnect
 from fastapi.responses import HTMLResponse, FileResponse
 from starlette.requests import Request
-from dotenv import load_dotenv
 from openai import OpenAI
 
-from app_paths import env_file, output_dir, resource_dir
+import settings
+from app_paths import output_dir, resource_dir
 
 # A windowed .app bundle has no console, so sys.stdout/stderr are None there.
 for _stream in (sys.stdout, sys.stderr):
     if _stream is not None and hasattr(_stream, "reconfigure"):
         _stream.reconfigure(encoding="utf-8")
 
-load_dotenv(env_file())
+settings.load()
 
 from transcriber import Transcriber
 from summarizer import Summarizer
@@ -33,27 +33,33 @@ OVERLAP_SAMPLES = SAMPLE_RATE * 2
 FLUSH_INTERVAL = 10
 NOISE_FLOOR = None
 
-WHISPER_PROVIDER = os.getenv("WHISPER_PROVIDER", "openai")
-PHOWHISPER_MODEL = os.getenv("PHOWHISPER_MODEL", "vinai/PhoWhisper-small")
-
 app = FastAPI(title="Meeting Summarizer")
 
-def get_openai_client():
-    api_key = os.getenv("OPENAI_API_KEY")
-    if not api_key or api_key == "sk-your-api-key-here":
-        raise HTTPException(status_code=500, detail="OPENAI_API_KEY not configured in .env")
-    return OpenAI(api_key=api_key)
 
-def get_whisper_client(provider: str = WHISPER_PROVIDER):
+class ConfigError(Exception):
+    """Configuration the user can fix in Settings, as opposed to a bug."""
+
+
+def get_openai_client():
+    if not settings.is_set("OPENAI_API_KEY"):
+        raise ConfigError("Chưa có OPENAI_API_KEY. Mở Cài đặt (⚙) để nhập khoá.")
+    return OpenAI(api_key=settings.get("OPENAI_API_KEY"))
+
+def get_whisper_client(provider: str = None):
+    # Read on every call: the user can switch providers from Settings without
+    # restarting the app.
+    provider = provider or settings.get("WHISPER_PROVIDER")
     if provider == "phowhisper":
-        return None, PHOWHISPER_MODEL
+        return None, settings.get("PHOWHISPER_MODEL")
     if provider == "openai":
         return get_openai_client(), "whisper-1"
-    key = os.getenv("GROQ_API_KEY")
-    if not key:
-        raise HTTPException(status_code=500, detail="GROQ_API_KEY not configured in .env")
-    client = OpenAI(api_key=key, base_url="https://api.groq.com/openai/v1")
+    if not settings.is_set("GROQ_API_KEY"):
+        raise ConfigError("Chưa có GROQ_API_KEY. Mở Cài đặt (⚙) để nhập khoá.")
+    client = OpenAI(api_key=settings.get("GROQ_API_KEY"), base_url="https://api.groq.com/openai/v1")
     return client, "whisper-large-v3"
+
+def transcriber_mode():
+    return "local" if settings.get("WHISPER_PROVIDER") == "phowhisper" else "api"
 
 def _noise_reduce(samples, noise_floor=None):
     if samples is None or len(samples) == 0:
@@ -119,6 +125,22 @@ async def health():
     return {"status": "ok"}
 
 
+@app.get("/api/settings")
+async def read_settings():
+    """Secrets come back masked — the browser never receives a usable key."""
+    return settings.public_state()
+
+
+@app.post("/api/settings")
+async def write_settings(payload: dict):
+    try:
+        return settings.save(payload or {})
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    except OSError as e:
+        raise HTTPException(status_code=500, detail=f"Không ghi được file cấu hình: {e}")
+
+
 @app.get("/", response_class=HTMLResponse)
 async def index():
     html_path = os.path.join(resource_dir(), "templates", "index.html")
@@ -147,7 +169,7 @@ async def transcribe_audio(
         whisper_client, whisper_model = get_whisper_client()
         gpt_client = get_openai_client()
 
-        mode = "local" if WHISPER_PROVIDER == "phowhisper" else "api"
+        mode = transcriber_mode()
         transcriber = Transcriber(whisper_client, language=language or None, prompt=None, model=whisper_model, mode=mode)
         summarizer = Summarizer(gpt_client, model="gpt-4o-mini")
 
@@ -179,6 +201,8 @@ async def transcribe_audio(
         }
     except HTTPException:
         raise
+    except ConfigError as e:
+        raise HTTPException(status_code=400, detail=str(e))
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
     finally:
@@ -198,8 +222,16 @@ async def websocket_endpoint(websocket: WebSocket):
     all_transcripts = []
     settings_received = False
     topic_check_count = 0
-    whisper_client, whisper_model = get_whisper_client()
-    gpt_client = get_openai_client()
+
+    # Resolve credentials before recording starts. Previously a missing key
+    # raised out of the handler and the browser saw only an opaque disconnect.
+    try:
+        whisper_client, whisper_model = get_whisper_client()
+        gpt_client = get_openai_client()
+    except ConfigError as e:
+        await websocket.send_json({"type": "config_error", "text": str(e)})
+        await websocket.close()
+        return
 
     try:
         while True:
@@ -236,7 +268,7 @@ async def websocket_endpoint(websocket: WebSocket):
                             audio_path = os.path.join(tmp, "chunk.wav")
                             _save_wav(audio_path, trimmed)
                             try:
-                                mode = "local" if WHISPER_PROVIDER == "phowhisper" else "api"
+                                mode = transcriber_mode()
                                 transcriber = Transcriber(
                                     whisper_client, language=language,
                                     prompt=prev_tail or None, model=whisper_model,
@@ -287,7 +319,7 @@ async def websocket_endpoint(websocket: WebSocket):
                 audio_path = os.path.join(tmp, "final.wav")
                 _save_wav(audio_path, trimmed)
                 try:
-                    mode = "local" if WHISPER_PROVIDER == "phowhisper" else "api"
+                    mode = transcriber_mode()
                     transcriber = Transcriber(
                         whisper_client, language=language,
                         prompt=prev_tail or None, model=whisper_model,

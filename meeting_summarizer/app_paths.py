@@ -47,18 +47,6 @@ def output_dir() -> str:
     return base
 
 
-def env_file() -> str:
-    """Preferred .env location, falling back to one shipped beside the source.
-
-    Users cannot edit a file inside an installed .app, so the support directory
-    wins when it holds a .env.
-    """
-    candidate = os.path.join(support_dir(), ".env")
-    if os.path.exists(candidate):
-        return candidate
-    return os.path.join(resource_dir(), ".env")
-
-
 def hf_cache_dir() -> str:
     """HuggingFace cache. Its default (~/.cache/huggingface) is fine, but pinning
     it keeps the several-hundred-MB PhoWhisper download with the rest of our state.

@@ -147,7 +147,75 @@
   }
   .realtime-entry:last-child { border-bottom: none; }
 
+  .settings-btn {
+    position: absolute; top: 40px; right: 24px;
+    width: 40px; height: 40px; border-radius: 10px;
+    border: 1px solid #334155; background: #1e293b; color: #94a3b8;
+    font-size: 18px; cursor: pointer; transition: all 0.2s;
+  }
+  .settings-btn:hover { border-color: #60a5fa; color: #e2e8f0; }
+  .settings-btn.needs-setup { border-color: #f59e0b; color: #fbbf24; }
+
+  .setup-banner {
+    display: none; gap: 12px; align-items: center;
+    background: #422006; border: 1px solid #b45309; border-radius: 10px;
+    padding: 14px 16px; margin-bottom: 20px; font-size: 14px; color: #fde68a;
+  }
+  .setup-banner.show { display: flex; }
+  .setup-banner-body { flex: 1; }
+  .setup-banner-title { font-weight: 600; color: #fbbf24; margin-bottom: 2px; }
+
+  .modal {
+    display: none; position: fixed; inset: 0; z-index: 50;
+    background: rgba(2, 6, 23, 0.75);
+    align-items: center; justify-content: center; padding: 20px;
+  }
+  .modal.show { display: flex; }
+  .modal-card {
+    background: #1e293b; border: 1px solid #334155; border-radius: 16px;
+    padding: 28px; width: 100%; max-width: 520px;
+    max-height: 90vh; overflow-y: auto;
+  }
+  .modal-card h2 { font-size: 20px; margin-bottom: 4px; }
+  .modal-sub { color: #94a3b8; font-size: 13px; margin-bottom: 20px; }
+
+  .field { margin-bottom: 18px; }
+  .field label { display: block; font-size: 13px; font-weight: 600; margin-bottom: 6px; }
+  .field .req { color: #fbbf24; font-weight: 400; font-size: 12px; }
+  .field .opt { color: #64748b; font-weight: 400; font-size: 12px; }
+  .field input, .field select {
+    width: 100%; padding: 10px 12px; border-radius: 8px;
+    border: 1px solid #334155; background: #0f172a; color: #e2e8f0;
+    font-size: 14px; outline: none; font-family: inherit;
+  }
+  .field input:focus, .field select:focus { border-color: #60a5fa; }
+  .field .hint { font-size: 12px; color: #64748b; margin-top: 5px; line-height: 1.5; }
+  .field .hint a { color: #60a5fa; }
+  .field .hint.stored { color: #34d399; }
+
+  .modal-actions { display: flex; gap: 10px; justify-content: flex-end; margin-top: 24px; }
+  .modal-actions button {
+    padding: 10px 20px; border-radius: 8px; font-size: 14px;
+    font-weight: 600; cursor: pointer; border: 1px solid transparent;
+    font-family: inherit;
+  }
+  .btn-ghost { background: transparent; border-color: #334155 !important; color: #94a3b8; }
+  .btn-ghost:hover { color: #e2e8f0; }
+  .btn-primary { background: #2563eb; color: #fff; }
+  .btn-primary:hover { background: #1d4ed8; }
+  .btn-primary:disabled { opacity: 0.6; cursor: default; }
+
+  .modal-msg { font-size: 13px; margin-top: 14px; display: none; }
+  .modal-msg.show { display: block; }
+  .modal-msg.err { color: #fca5a5; }
+  .modal-msg.ok { color: #34d399; }
+  .config-path {
+    font-size: 11px; color: #475569; margin-top: 18px;
+    word-break: break-all; border-top: 1px solid #334155; padding-top: 12px;
+  }
+
   @media (max-width: 600px) {
+    .settings-btn { top: 20px; right: 16px; }
     .container { padding: 20px 16px; }
     .card, .card.sm { padding: 20px; }
     .record-btn { width: 100px; height: 100px; }
@@ -160,6 +228,17 @@
 <div class="container">
   <h1>Meeting Summarizer</h1>
   <p class="subtitle">Ghi âm cuộc họp &amp; tự động tóm tắt</p>
+
+  <button class="settings-btn" id="settingsBtn" onclick="openSettings()" title="Cài đặt API key">⚙</button>
+
+  <div class="setup-banner" id="setupBanner">
+    <span style="font-size:18px">⚠️</span>
+    <div class="setup-banner-body">
+      <div class="setup-banner-title">Chưa cấu hình xong</div>
+      <div id="setupBannerText"></div>
+    </div>
+    <button class="btn-primary" style="padding:8px 14px;border:none;border-radius:8px;font-size:13px;font-weight:600;cursor:pointer;font-family:inherit" onclick="openSettings()">Mở cài đặt</button>
+  </div>
 
   <div class="card">
     <input type="text" id="meetingTitle" class="title-input" placeholder="Nhập tiêu đề cuộc họp..." maxlength="100">
@@ -228,6 +307,70 @@
   </div>
 </div>
 
+<div class="modal" id="settingsModal">
+  <div class="modal-card">
+    <h2>Cài đặt</h2>
+    <p class="modal-sub">Khoá API được lưu trên máy này, không gửi đi đâu khác.</p>
+
+    <div class="field">
+      <label>OpenAI API Key <span class="req">• bắt buộc</span></label>
+      <input type="password" id="set_OPENAI_API_KEY" placeholder="sk-..." autocomplete="off" spellcheck="false">
+      <div class="hint" id="hint_OPENAI_API_KEY">
+        Dùng để viết biên bản tóm tắt. Lấy khoá tại
+        <a href="https://platform.openai.com/api-keys" target="_blank" rel="noopener">platform.openai.com</a>.
+      </div>
+    </div>
+
+    <div class="field">
+      <label>Nhận dạng giọng nói bằng</label>
+      <select id="set_WHISPER_PROVIDER" onchange="onProviderChange()">
+        <option value="openai">OpenAI Whisper — cần OpenAI key</option>
+        <option value="groq">Groq Whisper — nhanh, có gói miễn phí</option>
+        <option value="phowhisper">PhoWhisper — chạy offline trên máy này</option>
+      </select>
+      <div class="hint" id="providerHint"></div>
+    </div>
+
+    <div class="field" id="field_GROQ" style="display:none">
+      <label>Groq API Key <span class="req">• bắt buộc khi dùng Groq</span></label>
+      <input type="password" id="set_GROQ_API_KEY" placeholder="gsk_..." autocomplete="off" spellcheck="false">
+      <div class="hint" id="hint_GROQ_API_KEY">
+        Đăng ký miễn phí tại
+        <a href="https://console.groq.com" target="_blank" rel="noopener">console.groq.com</a>.
+      </div>
+    </div>
+
+    <div id="phowhisperOpts" style="display:none">
+      <div class="field">
+        <label>Model PhoWhisper</label>
+        <select id="set_PHOWHISPER_MODEL">
+          <option value="vinai/PhoWhisper-tiny">tiny — nhanh nhất, kém chính xác nhất</option>
+          <option value="vinai/PhoWhisper-base">base</option>
+          <option value="vinai/PhoWhisper-small">small — cân bằng</option>
+          <option value="vinai/PhoWhisper-medium">medium — chính xác nhất, chậm</option>
+        </select>
+        <div class="hint">Lần đầu dùng sẽ tải model về máy (cần mạng một lần).</div>
+      </div>
+      <div class="field">
+        <label>Thiết bị xử lý</label>
+        <select id="set_PHOWHISPER_DEVICE">
+          <option value="auto">Tự động — dùng Metal (GPU) nếu có</option>
+          <option value="cpu">CPU — chậm hơn nhưng ổn định nhất</option>
+        </select>
+      </div>
+    </div>
+
+    <div class="modal-msg" id="settingsMsg"></div>
+
+    <div class="modal-actions">
+      <button class="btn-ghost" onclick="closeSettings()">Huỷ</button>
+      <button class="btn-primary" id="saveSettingsBtn" onclick="saveSettings()">Lưu</button>
+    </div>
+
+    <div class="config-path" id="configPath"></div>
+  </div>
+</div>
+
 <script>
   let ws = null, audioContext = null, processor = null, source = null, stream = null;
   let recording = false, timerInterval = null, seconds = 0;
@@ -269,11 +412,144 @@
     realtimeTranscript.scrollTop = realtimeTranscript.scrollHeight;
   }
 
+  // ---- Cài đặt API key ---------------------------------------------------
+  const settingsModal = document.getElementById('settingsModal');
+  const settingsBtn = document.getElementById('settingsBtn');
+  const setupBanner = document.getElementById('setupBanner');
+  const setupBannerText = document.getElementById('setupBannerText');
+  const settingsMsg = document.getElementById('settingsMsg');
+  const saveSettingsBtn = document.getElementById('saveSettingsBtn');
+
+  const SECRET_FIELDS = ['OPENAI_API_KEY', 'GROQ_API_KEY'];
+  const PLAIN_FIELDS = ['WHISPER_PROVIDER', 'PHOWHISPER_MODEL', 'PHOWHISPER_DEVICE'];
+  let settingsState = null;
+
+  function applyReadiness(state) {
+    const ready = (state && state.ready) || {};
+    if (ready.ok) {
+      setupBanner.classList.remove('show');
+      settingsBtn.classList.remove('needs-setup');
+    } else {
+      setupBannerText.textContent = (ready.problems || []).join(' ');
+      setupBanner.classList.add('show');
+      settingsBtn.classList.add('needs-setup');
+    }
+  }
+
+  async function refreshSettings() {
+    try {
+      const r = await fetch('/api/settings');
+      if (!r.ok) return null;
+      settingsState = await r.json();
+      applyReadiness(settingsState);
+      return settingsState;
+    } catch { return null; }
+  }
+
+  function onProviderChange() {
+    const p = document.getElementById('set_WHISPER_PROVIDER').value;
+    document.getElementById('field_GROQ').style.display = p === 'groq' ? '' : 'none';
+    document.getElementById('phowhisperOpts').style.display = p === 'phowhisper' ? '' : 'none';
+    const hints = {
+      openai: 'Chính xác cao, tính phí theo thời lượng ghi âm.',
+      groq: 'Rất nhanh và có gói miễn phí, cần khoá Groq riêng.',
+      phowhisper: 'Chạy hoàn toàn trên máy này, không tốn phí nhận dạng. Phần tóm tắt vẫn cần OpenAI key.'
+    };
+    document.getElementById('providerHint').textContent = hints[p] || '';
+  }
+
+  function setStoredHint(name) {
+    const el = document.getElementById('hint_' + name);
+    if (!el || !settingsState) return;
+    if (!el.dataset.base) el.dataset.base = el.innerHTML;
+    const f = settingsState.fields[name];
+    if (f && f.configured) {
+      el.textContent = 'Đã lưu: ' + f.preview + ' — để trống nếu không muốn đổi.';
+      el.classList.add('stored');
+    } else {
+      el.innerHTML = el.dataset.base;
+      el.classList.remove('stored');
+    }
+  }
+
+  async function openSettings() {
+    settingsMsg.className = 'modal-msg';
+    const state = await refreshSettings();
+    if (!state) { showError('Không đọc được cài đặt'); return; }
+    PLAIN_FIELDS.forEach(n => {
+      const el = document.getElementById('set_' + n);
+      if (el && state.fields[n]) el.value = state.fields[n].value;
+    });
+    SECRET_FIELDS.forEach(n => {
+      const el = document.getElementById('set_' + n);
+      if (el) el.value = '';
+      setStoredHint(n);
+    });
+    document.getElementById('configPath').textContent = 'Lưu tại: ' + state.config_path;
+    onProviderChange();
+    settingsModal.classList.add('show');
+  }
+
+  function closeSettings() { settingsModal.classList.remove('show'); }
+
+  async function saveSettings() {
+    const payload = {};
+    PLAIN_FIELDS.forEach(n => {
+      const el = document.getElementById('set_' + n);
+      if (el) payload[n] = el.value;
+    });
+    SECRET_FIELDS.forEach(n => {
+      const el = document.getElementById('set_' + n);
+      // Blank means "keep what is stored" — the form only ever showed a mask,
+      // so it cannot echo the real key back.
+      if (el && el.value.trim()) payload[n] = el.value.trim();
+    });
+
+    saveSettingsBtn.disabled = true;
+    settingsMsg.className = 'modal-msg';
+    try {
+      const r = await fetch('/api/settings', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+      });
+      const data = await r.json();
+      if (!r.ok) throw new Error(data.detail || 'Lưu thất bại');
+      settingsState = data;
+      applyReadiness(data);
+      SECRET_FIELDS.forEach(n => {
+        const el = document.getElementById('set_' + n);
+        if (el) el.value = '';
+        setStoredHint(n);
+      });
+      settingsMsg.textContent = 'Đã lưu.';
+      settingsMsg.className = 'modal-msg ok show';
+      setTimeout(closeSettings, 700);
+    } catch (e) {
+      settingsMsg.textContent = e.message;
+      settingsMsg.className = 'modal-msg err show';
+    } finally {
+      saveSettingsBtn.disabled = false;
+    }
+  }
+
+  settingsModal.addEventListener('click', e => { if (e.target === settingsModal) closeSettings(); });
+  document.addEventListener('keydown', e => { if (e.key === 'Escape') closeSettings(); });
+  refreshSettings();
+
   async function toggleRecording() {
     if (recording) await stopRecording(); else await startRecording();
   }
 
   async function startRecording() {
+    // Fail before touching the microphone rather than after the user has
+    // already started talking.
+    const state = await refreshSettings();
+    if (state && state.ready && !state.ready.ok) {
+      openSettings();
+      return;
+    }
+
     try {
       stream = await navigator.mediaDevices.getUserMedia({ audio: true });
       ws = new WebSocket('ws://' + location.host + '/ws');
@@ -298,7 +574,11 @@
 
       ws.onmessage = (event) => {
         const data = JSON.parse(event.data);
-        if (data.type === 'transcript') {
+        if (data.type === 'config_error') {
+          showError(data.text);
+          resetUI();
+          refreshSettings().then(openSettings);
+        } else if (data.type === 'transcript') {
           appendRealtime(data.text);
           statusLine.textContent = 'Đã nhận dạng ' + allTranscripts.length + ' đoạn';
           statusLine.className = 'status-line';

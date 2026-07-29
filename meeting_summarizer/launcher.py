@@ -19,27 +19,6 @@ HOST = "127.0.0.1"
 DEFAULT_PORT = 8000
 PORT_ATTEMPTS = 50
 
-ENV_TEMPLATE = """# Fill these in, then relaunch Meeting Summarizer.
-
-# Needed for the meeting summary (always) and for Whisper when
-# WHISPER_PROVIDER=openai.
-OPENAI_API_KEY=sk-your-api-key-here
-
-# Only needed when WHISPER_PROVIDER=groq. Free key: https://console.groq.com
-GROQ_API_KEY=your-groq-api-key-here
-
-# "openai" | "groq" | "phowhisper"
-# phowhisper runs locally on this Mac and needs no transcription API key.
-WHISPER_PROVIDER=phowhisper
-
-# vinai/PhoWhisper-{tiny,base,small,medium}
-PHOWHISPER_MODEL=vinai/PhoWhisper-small
-
-# "auto" picks Metal (mps) on Apple Silicon. Force "cpu" if you hit MPS issues.
-PHOWHISPER_DEVICE=auto
-"""
-
-
 def _setup_output(log_path):
     """Make print() safe before anything else runs.
 
@@ -87,14 +66,6 @@ def _find_free_port(start=DEFAULT_PORT, attempts=PORT_ATTEMPTS):
             except OSError:
                 continue
     raise RuntimeError(f"No free port in {start}-{start + attempts - 1}")
-
-
-def _seed_env_file(path):
-    if os.path.exists(path):
-        return False
-    with open(path, "w", encoding="utf-8") as f:
-        f.write(ENV_TEMPLATE)
-    return True
 
 
 def _open_browser_when_ready(url, timeout=180):
@@ -161,6 +132,7 @@ def _selftest():
     check("uvicorn", lambda: __import__("uvicorn").__version__)
     check("openai", lambda: __import__("openai").__version__)
     check("web app", lambda: __import__("web").app.title)
+    check("settings", lambda: f"{len(__import__('settings').FIELDS)} fields")
     check("templates", _templates)
 
     if failures:
@@ -183,23 +155,13 @@ def main():
     os.environ.setdefault("PYTORCH_ENABLE_MPS_FALLBACK", "1")
     os.environ.setdefault("TOKENIZERS_PARALLELISM", "false")
 
-    env_path = os.path.join(support_dir(), ".env")
-    created = _seed_env_file(env_path)
-
     print(f"--- Meeting Summarizer starting at {time.strftime('%Y-%m-%d %H:%M:%S')} ---")
-    print(f"config:  {env_path}")
+    print(f"config:  {os.path.join(support_dir(), '.env')}")
     print(f"outputs: {output_dir()}")
     print(f"log:     {log_path}")
 
-    if created:
-        _alert(
-            "Meeting Summarizer - Cấu hình lần đầu",
-            f"Đã tạo file cấu hình tại:\n\n{env_path}\n\n"
-            f"Mở file đó và điền OPENAI_API_KEY (cần cho phần tóm tắt), rồi mở lại ứng dụng.",
-        )
-        if sys.platform == "darwin":
-            subprocess.run(["open", "-R", env_path], capture_output=True)
-        return 0
+    # No first-run gate here: API keys are entered in the web UI's Settings
+    # screen, so the server has to come up even with no configuration at all.
 
     try:
         port = _find_free_port()

@@ -81,14 +81,22 @@ bên dưới.
 
 ## 5. Cấu hình lần đầu
 
-Lần chạy đầu tiên app tạo file cấu hình rồi hiện hộp thoại và thoát:
+App khởi động được ngay cả khi chưa có API key. Người dùng nhập khoá **ngay
+trong giao diện**, không cần mở file nào:
 
-```
-~/Library/Application Support/MeetingSummarizer/.env
-```
+1. Mở app → tự mở trình duyệt.
+2. Có banner vàng "Chưa cấu hình xong" và nút **⚙** ở góc phải sáng màu cam.
+3. Bấm ⚙ → nhập **OpenAI API Key** → **Lưu**.
 
-Mở file đó, điền `OPENAI_API_KEY` (bắt buộc — phần tóm tắt luôn dùng GPT), rồi
-mở lại app. App sẽ tự tìm port trống từ 8000 và mở trình duyệt mặc định.
+Đổi khoá hoặc đổi nhà cung cấp nhận dạng giọng nói sau này cũng vào cùng chỗ đó.
+Thay đổi có hiệu lực ngay, **không cần khởi động lại app**.
+
+Bấm nút ghi âm khi chưa cấu hình xong sẽ tự mở hộp thoại Cài đặt thay vì để
+người dùng nói xong mới báo lỗi.
+
+Khoá được lưu vào `~/Library/Application Support/MeetingSummarizer/.env`
+(quyền `600`) và chỉ nằm trên máy đó. Giao diện không bao giờ nhận lại khoá
+nguyên văn — chỉ hiển thị dạng che `sk-••••••••WXYZ` để biết đã lưu khoá nào.
 
 Vì micro do **trình duyệt** thu chứ không phải app, quyền micro sẽ do Chrome/
 Safari hỏi, không cần cấp quyền ở tầng hệ điều hành.
@@ -97,7 +105,7 @@ Safari hỏi, không cần cấp quyền ở tầng hệ điều hành.
 
 | Nội dung | Đường dẫn |
 |---|---|
-| Cấu hình | `~/Library/Application Support/MeetingSummarizer/.env` |
+| Cấu hình (ghi bởi màn hình Cài đặt) | `~/Library/Application Support/MeetingSummarizer/.env` |
 | Log (debug khi app không mở được) | `~/Library/Application Support/MeetingSummarizer/launcher.log` |
 | Model PhoWhisper đã tải | `~/Library/Application Support/MeetingSummarizer/hf_cache/` |
 | Transcript & biên bản | `~/Documents/MeetingSummarizer/` |
