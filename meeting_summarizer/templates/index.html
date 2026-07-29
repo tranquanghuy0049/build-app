@@ -1,0 +1,404 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Meeting Summarizer</title>
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    background: #0f172a; color: #e2e8f0; min-height: 100vh;
+    display: flex; align-items: center; justify-content: center;
+  }
+  .container { width: 100%; max-width: 860px; padding: 40px 24px; }
+  h1 {
+    font-size: 28px; font-weight: 700; text-align: center;
+    background: linear-gradient(135deg, #60a5fa, #a78bfa);
+    -webkit-background-clip: text; -webkit-text-fill-color: transparent;
+    margin-bottom: 8px;
+  }
+  .subtitle { text-align: center; color: #94a3b8; font-size: 14px; margin-bottom: 32px; }
+  .card { background: #1e293b; border-radius: 16px; padding: 32px; border: 1px solid #334155; margin-bottom: 20px; }
+  .card.sm { padding: 20px; }
+
+  .title-input {
+    width: 100%; padding: 12px 16px; border-radius: 10px;
+    border: 1px solid #334155; background: #0f172a;
+    color: #e2e8f0; font-size: 15px; outline: none; transition: border-color 0.2s;
+  }
+  .title-input:focus { border-color: #60a5fa; }
+  .title-input::placeholder { color: #64748b; }
+
+  .btn-wrapper { text-align: center; margin: 20px 0; }
+  .record-btn {
+    width: 120px; height: 120px; border-radius: 50%;
+    border: 4px solid #475569; background: #1e293b;
+    cursor: pointer; display: inline-flex; align-items: center; justify-content: center;
+    transition: all 0.3s ease; position: relative;
+  }
+  .record-btn:hover { border-color: #60a5fa; transform: scale(1.05); }
+  .record-btn.recording { border-color: #ef4444; animation: pulse 1.5s ease-in-out infinite; }
+  .record-btn.processing { border-color: #f59e0b; pointer-events: none; }
+  .record-btn .icon { font-size: 36px; transition: all 0.3s ease; }
+  .record-btn.recording .icon { color: #ef4444; }
+  .record-btn .status-text {
+    position: absolute; bottom: -28px; left: 50%; transform: translateX(-50%);
+    font-size: 13px; color: #94a3b8; white-space: nowrap;
+  }
+  .record-btn.recording .status-text { color: #ef4444; }
+
+  @keyframes pulse {
+    0%, 100% { box-shadow: 0 0 0 0 rgba(239, 68, 68, 0.4); }
+    50% { box-shadow: 0 0 0 20px rgba(239, 68, 68, 0); }
+  }
+
+  .timer { text-align: center; font-size: 24px; font-weight: 600; font-variant-numeric: tabular-nums; margin-top: 8px; min-height: 36px; color: #94a3b8; }
+  .timer.active { color: #fbbf24; }
+  .error { background: #7f1d1d; border: 1px solid #dc2626; border-radius: 10px; padding: 16px; color: #fca5a5; font-size: 14px; display: none; }
+  .error.show { display: block; }
+
+  h2 { font-size: 18px; font-weight: 600; margin-bottom: 12px; display: flex; align-items: center; gap: 8px; }
+  h2 .badge { font-size: 12px; background: #334155; color: #94a3b8; padding: 2px 8px; border-radius: 6px; font-weight: 400; }
+
+  .content-box {
+    background: #0f172a; border: 1px solid #334155; border-radius: 10px;
+    padding: 20px; font-size: 14px; line-height: 1.7;
+    max-height: 300px; overflow-y: auto; white-space: pre-wrap;
+  }
+  .content-box.transcript { border-left: 3px solid #60a5fa; }
+  .content-box.summary { border-left: 3px solid #a78bfa; }
+
+  .download-bar { display: flex; gap: 10px; flex-wrap: wrap; margin-top: 12px; }
+  .download-btn {
+    display: inline-flex; align-items: center; gap: 6px;
+    padding: 10px 20px; border-radius: 8px; font-size: 14px; font-weight: 500;
+    border: none; cursor: pointer; transition: all 0.2s; text-decoration: none;
+  }
+  .download-btn:hover { transform: translateY(-1px); }
+  .download-btn.md { background: #1e40af; color: #bfdbfe; }
+  .download-btn.md:hover { background: #1d4ed8; }
+  .download-btn.copy { background: #334155; color: #cbd5e1; }
+  .download-btn.copy:hover { background: #475569; }
+  .download-btn.copy.copied { background: #166534; color: #bbf7d0; }
+
+  .spinner {
+    display: inline-block; width: 20px; height: 20px;
+    border: 2px solid #f59e0b; border-top-color: transparent;
+    border-radius: 50%; animation: spin 0.8s linear infinite;
+  }
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  .visualizer { display: none; align-items: center; justify-content: center; gap: 3px; height: 40px; margin: 8px 0; }
+  .visualizer.active { display: flex; }
+  .visualizer .bar {
+    width: 4px; border-radius: 2px;
+    animation: viz 0.5s ease-in-out infinite alternate;
+  }
+  .visualizer .bar:nth-child(1) { height: 12px; animation-delay: 0s; }
+  .visualizer .bar:nth-child(2) { height: 20px; animation-delay: 0.1s; }
+  .visualizer .bar:nth-child(3) { height: 28px; animation-delay: 0.2s; }
+  .visualizer .bar:nth-child(4) { height: 20px; animation-delay: 0.3s; }
+  .visualizer .bar:nth-child(5) { height: 12px; animation-delay: 0.4s; }
+  .visualizer .bar:nth-child(6) { height: 22px; animation-delay: 0.5s; }
+  .visualizer .bar:nth-child(7) { height: 16px; animation-delay: 0.6s; }
+  .visualizer .bar:nth-child(8) { height: 26px; animation-delay: 0.7s; }
+  @keyframes viz {
+    0% { height: 8px; background: #60a5fa; }
+    100% { height: 32px; background: #a78bfa; }
+  }
+
+  .content-box::-webkit-scrollbar { width: 6px; }
+  .content-box::-webkit-scrollbar-track { background: transparent; }
+  .content-box::-webkit-scrollbar-thumb { background: #475569; border-radius: 3px; }
+
+  .live-indicator {
+    display: none; align-items: center; gap: 6px;
+    font-size: 12px; color: #60a5fa; margin-bottom: 8px;
+  }
+  .live-indicator.active { display: flex; }
+  .live-dot {
+    width: 8px; height: 8px; border-radius: 50%;
+    background: #22c55e; animation: live-pulse 1.5s ease-in-out infinite;
+  }
+  @keyframes live-pulse {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.3; }
+  }
+
+  .realtime-box { max-height: 200px; min-height: 60px; margin-bottom: 0; border-bottom-left-radius: 0; border-bottom-right-radius: 0; }
+  .status-line { font-size: 13px; color: #64748b; padding: 8px 16px; border: 1px solid #334155; border-top: none; border-radius: 0 0 10px 10px; background: #0f172a; margin-bottom: 16px; }
+  .status-line.processing { color: #f59e0b; }
+  .status-line.done { color: #22c55e; }
+
+  .topic-warning {
+    display: none; align-items: flex-start; gap: 12px;
+    background: #78350f; border: 1px solid #f59e0b; border-radius: 10px;
+    padding: 12px 16px; margin-bottom: 12px; font-size: 13px;
+  }
+  .topic-warning.show { display: flex; }
+  .topic-warning-icon { font-size: 18px; flex-shrink: 0; margin-top: 1px; }
+  .topic-warning-title { font-weight: 600; color: #fbbf24; margin-bottom: 2px; }
+  .topic-warning-text { color: #fde68a; line-height: 1.5; }
+  .topic-warning-goal { color: #94a3b8; font-size: 12px; margin-top: 4px; }
+
+  .realtime-entry {
+    padding: 6px 0; border-bottom: 1px solid #1e293b;
+  }
+  .realtime-entry:last-child { border-bottom: none; }
+
+  @media (max-width: 600px) {
+    .container { padding: 20px 16px; }
+    .card, .card.sm { padding: 20px; }
+    .record-btn { width: 100px; height: 100px; }
+    .record-btn .icon { font-size: 28px; }
+    .content-box { max-height: 200px; }
+  }
+</style>
+</head>
+<body>
+<div class="container">
+  <h1>Meeting Summarizer</h1>
+  <p class="subtitle">Ghi âm cuộc họp &amp; tự động tóm tắt</p>
+
+  <div class="card">
+    <input type="text" id="meetingTitle" class="title-input" placeholder="Nhập tiêu đề cuộc họp..." maxlength="100">
+
+    <div style="margin-top:12px">
+      <textarea id="meetingGoals" class="title-input" style="min-height:60px;resize:vertical;font-size:14px" placeholder="Nhập mục tiêu / chủ đề chính của cuộc họp hôm nay (VD: Bàn về kế hoạch phát triển tính năng mới cho ứng dụng)..."></textarea>
+    </div>
+
+    <div class="btn-wrapper">
+      <button class="record-btn" id="recordBtn" onclick="toggleRecording()">
+        <span class="icon">🎤</span>
+        <span class="status-text">Bắt đầu</span>
+      </button>
+    </div>
+
+    <div class="visualizer" id="visualizer">
+      <div class="bar"></div><div class="bar"></div><div class="bar"></div>
+      <div class="bar"></div><div class="bar"></div><div class="bar"></div>
+      <div class="bar"></div><div class="bar"></div>
+    </div>
+
+    <div class="timer" id="timer"></div>
+  </div>
+
+  <div class="error" id="error"></div>
+
+  <div id="realtimeSection" style="display:none">
+    <div class="card sm">
+      <div class="live-indicator" id="liveIndicator">
+        <span class="live-dot"></span>
+        <span>Đang ghi & nhận dạng giọng nói...</span>
+      </div>
+      <div class="topic-warning" id="topicWarning">
+        <span class="topic-warning-icon">⚠️</span>
+        <div>
+          <div class="topic-warning-title" id="topicWarningTitle">Lạc chủ đề</div>
+          <div class="topic-warning-text" id="topicWarningText"></div>
+          <div class="topic-warning-goal" id="topicWarningGoal"></div>
+        </div>
+      </div>
+      <div class="content-box realtime-box" id="realtimeTranscript">
+        <span style="color:#64748b">Chờ giọng nói...</span>
+      </div>
+      <div class="status-line" id="statusLine"></div>
+    </div>
+  </div>
+
+  <div class="results" id="results" style="display:none">
+    <div class="card">
+      <h2>Transcript <span class="badge">chi tiết</span></h2>
+      <div class="content-box transcript" id="transcriptContent"></div>
+      <div class="download-bar">
+        <button class="download-btn copy" onclick="copyTranscript()">📋 Sao chép</button>
+        <a class="download-btn md" id="downloadTranscript" href="#" download>Tải xuống .md</a>
+      </div>
+    </div>
+
+    <div class="card">
+      <h2>Summary <span class="badge">tóm tắt AI</span></h2>
+      <div class="content-box summary" id="summaryContent"></div>
+      <div class="download-bar">
+        <button class="download-btn copy" onclick="copySummary()">📋 Sao chép</button>
+        <a class="download-btn md" id="downloadSummary" href="#" download>Tải xuống .md</a>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+  let ws = null, audioContext = null, processor = null, source = null, stream = null;
+  let recording = false, timerInterval = null, seconds = 0;
+  let summaryReceived = false, allTranscripts = [];
+
+  const recordBtn = document.getElementById('recordBtn');
+  const timer = document.getElementById('timer');
+  const error = document.getElementById('error');
+  const results = document.getElementById('results');
+  const transcriptContent = document.getElementById('transcriptContent');
+  const summaryContent = document.getElementById('summaryContent');
+  const downloadTranscript = document.getElementById('downloadTranscript');
+  const downloadSummary = document.getElementById('downloadSummary');
+  const visualizer = document.getElementById('visualizer');
+  const meetingTitle = document.getElementById('meetingTitle');
+  const meetingGoals = document.getElementById('meetingGoals');
+  const realtimeTranscript = document.getElementById('realtimeTranscript');
+  const realtimeSection = document.getElementById('realtimeSection');
+  const liveIndicator = document.getElementById('liveIndicator');
+  const statusLine = document.getElementById('statusLine');
+
+  function showError(msg) {
+    error.textContent = msg; error.classList.add('show');
+    setTimeout(() => error.classList.remove('show'), 5000);
+  }
+  function formatTime(s) {
+    const m = Math.floor(s / 60), sec = s % 60;
+    return `${String(m).padStart(2, '0')}:${String(sec).padStart(2, '0')}`;
+  }
+  function appendRealtime(text) {
+    allTranscripts.push(text);
+    const entry = document.createElement('div');
+    entry.className = 'realtime-entry';
+    const ts = new Date();
+    const timeStr = String(ts.getHours()).padStart(2,'0') + ':' + String(ts.getMinutes()).padStart(2,'0') + ':' + String(ts.getSeconds()).padStart(2,'0');
+    entry.innerHTML = '<span style="color:#64748b;font-size:12px">[' + timeStr + ']</span> ' + text;
+    if (realtimeTranscript.querySelector('span')) realtimeTranscript.innerHTML = '';
+    realtimeTranscript.appendChild(entry);
+    realtimeTranscript.scrollTop = realtimeTranscript.scrollHeight;
+  }
+
+  async function toggleRecording() {
+    if (recording) await stopRecording(); else await startRecording();
+  }
+
+  async function startRecording() {
+    try {
+      stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      ws = new WebSocket('ws://' + location.host + '/ws');
+
+      ws.onopen = () => {
+        ws.send(JSON.stringify({ language: 'vi', title: meetingTitle.value.trim(), goals: meetingGoals.value.trim() }));
+        const AudioCtx = window.AudioContext || window.webkitAudioContext;
+        audioContext = new AudioCtx({ sampleRate: 16000 });
+        source = audioContext.createMediaStreamSource(stream);
+        processor = audioContext.createScriptProcessor(8192, 1, 1);
+        processor.onaudioprocess = (e) => {
+          if (!recording) return;
+          const input = e.inputBuffer.getChannelData(0);
+          const gain = 3.0;
+          const int16 = new Int16Array(input.length);
+          for (let i = 0; i < input.length; i++) int16[i] = Math.max(-32768, Math.min(32767, input[i] * 32768 * gain));
+          ws.send(int16.buffer);
+        };
+        source.connect(processor);
+        processor.connect(audioContext.destination);
+      };
+
+      ws.onmessage = (event) => {
+        const data = JSON.parse(event.data);
+        if (data.type === 'transcript') {
+          appendRealtime(data.text);
+          statusLine.textContent = 'Đã nhận dạng ' + allTranscripts.length + ' đoạn';
+          statusLine.className = 'status-line';
+        } else if (data.type === 'topic_warning') {
+          document.getElementById('topicWarning').classList.add('show');
+          document.getElementById('topicWarningTitle').textContent = '⚠️ Lạc chủ đề: ' + data.topic;
+          document.getElementById('topicWarningText').textContent = data.suggestion;
+          document.getElementById('topicWarningGoal').textContent = 'Chủ đề chính: ' + (meetingGoals.value.trim() || 'không có');
+          setTimeout(() => document.getElementById('topicWarning').classList.remove('show'), 8000);
+        } else if (data.type === 'summary') {
+          statusLine.textContent = '✅ Đã xử lý xong!';
+          statusLine.className = 'status-line done';
+          liveIndicator.classList.remove('active');
+          transcriptContent.textContent = data.transcript;
+          summaryContent.textContent = data.summary;
+          downloadTranscript.href = '/api/download/' + data.transcript_file;
+          downloadSummary.href = '/api/download/' + data.summary_file;
+          results.style.display = 'block';
+          summaryReceived = true;
+        } else if (data.type === 'done') {
+          finishUp();
+        }
+      };
+
+      ws.onerror = () => { showError('WebSocket lỗi kết nối'); resetUI(); };
+      ws.onclose = () => { if (!summaryReceived) finishUp(); };
+
+      recording = true; seconds = 0; summaryReceived = false; allTranscripts = [];
+      recordBtn.classList.add('recording');
+      recordBtn.querySelector('.icon').textContent = '⏹';
+      recordBtn.querySelector('.status-text').textContent = 'Kết thúc';
+      timer.classList.add('active');
+      timer.textContent = '00:00';
+      visualizer.classList.add('active');
+      results.style.display = 'none';
+      realtimeSection.style.display = 'block';
+      liveIndicator.classList.add('active');
+      document.getElementById('topicWarning').classList.remove('show');
+      realtimeTranscript.innerHTML = '<span style="color:#64748b">Chờ giọng nói...</span>';
+      statusLine.textContent = 'Đang ghi âm...';
+      statusLine.className = 'status-line';
+
+      timerInterval = setInterval(() => { seconds++; timer.textContent = formatTime(seconds); }, 1000);
+    } catch (err) {
+      showError('Không thể truy cập microphone: ' + err.message);
+    }
+  }
+
+  async function stopRecording() {
+    if (!recording) return;
+    recording = false;
+    clearInterval(timerInterval);
+    visualizer.classList.remove('active');
+    liveIndicator.classList.remove('active');
+
+    recordBtn.classList.remove('recording');
+    recordBtn.classList.add('processing');
+    recordBtn.querySelector('.icon').innerHTML = '<div class="spinner"></div>';
+    recordBtn.querySelector('.status-text').textContent = 'Đang xử lý...';
+    statusLine.textContent = '⏳ Đang xử lý dữ liệu...';
+    statusLine.className = 'status-line processing';
+
+    if (processor) { processor.disconnect(); processor = null; }
+    if (source) { source.disconnect(); source = null; }
+    if (audioContext) { await audioContext.close(); audioContext = null; }
+    if (stream) { stream.getTracks().forEach(t => t.stop()); stream = null; }
+
+    if (ws && ws.readyState === WebSocket.OPEN) ws.send('DONE');
+  }
+
+  function finishUp() {
+    if (!summaryReceived) {
+      statusLine.textContent = '⚠️ Không nhận được kết quả hoặc không có giọng nói';
+      statusLine.className = 'status-line';
+    }
+    resetUI();
+  }
+
+  function resetUI() {
+    recordBtn.classList.remove('processing');
+    recordBtn.querySelector('.icon').textContent = '🎤';
+    recordBtn.querySelector('.status-text').textContent = 'Bắt đầu';
+    timer.textContent = '';
+    timer.classList.remove('active');
+  }
+
+  async function copyText(text, btn) {
+    try {
+      await navigator.clipboard.writeText(text);
+      btn.textContent = '✅ Đã sao chép'; btn.classList.add('copied');
+      setTimeout(() => { btn.textContent = '📋 Sao chép'; btn.classList.remove('copied'); }, 2000);
+    } catch { showError('Không thể sao chép'); }
+  }
+  function copyTranscript() {
+    copyText(transcriptContent.textContent, document.getElementById('results').querySelector('.download-btn.copy'));
+  }
+  function copySummary() {
+    const btns = document.querySelectorAll('#results .download-btn.copy');
+    copyText(summaryContent.textContent, btns[1]);
+  }
+</script>
+</body>
+</html>

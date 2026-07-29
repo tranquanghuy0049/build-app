@@ -1,0 +1,25 @@
+# API keys
+.env
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+venv/
+# PyInstaller specs it generates itself, but ours is checked in — CI builds from it.
+*.spec
+!meeting_summarizer/packaging/*.spec
+
+# Build outputs
+build/
+dist/
+
+# Contains a real .env; never distribute or commit it.
+meeting_summarizer/meeting_summarizer.zip
+
+# Meeting outputs
+meeting_summarizer/meeting_outputs/
+
+# OS
+Thumbs.db
+.DS_Store

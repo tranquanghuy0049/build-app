@@ -1,0 +1,22 @@
+# Runtime dependencies for the macOS build.
+#
+# Differences from requirements.txt:
+#   - sounddevice / colorama dropped: only the CLI (main.py) used them, and the
+#     macOS build ships the web UI only. Audio is captured by the browser.
+#   - librosa dropped in favour of soxr: librosa drags in numba + llvmlite, which
+#     are painful under PyInstaller and only ever did one resample call.
+#   - jinja2 dropped: the app serves templates/index.html directly.
+#
+# torch is NOT pinned here because the correct pin is architecture-dependent —
+# see packaging/build_macos.sh. PyTorch stopped shipping macOS x86_64 wheels
+# after 2.2.2, so Intel Macs are stuck on that release.
+
+numpy>=1.24.0
+openai>=1.0.0
+python-dotenv>=1.0.0
+fastapi>=0.110.0
+uvicorn[standard]>=0.27.0
+python-multipart>=0.0.6
+transformers>=4.40.0
+soundfile>=0.12.0
+soxr>=0.3.7

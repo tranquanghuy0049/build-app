@@ -1,0 +1,68 @@
+name: Build macOS app
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "Version stamped into the bundle"
+        required: false
+        default: "1.0.0"
+  push:
+    tags:
+      - "v*"
+
+jobs:
+  build:
+    strategy:
+      # Keep going if only one architecture fails — Intel is the fragile one.
+      fail-fast: false
+      matrix:
+        include:
+          - runner: macos-14
+            arch: arm64
+            label: "Apple Silicon (M1/M2/M3/M4)"
+          - runner: macos-13
+            arch: x86_64
+            label: "Intel"
+
+    name: ${{ matrix.label }}
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 90
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Show runner architecture
+        run: |
+          uname -m
+          python3 -c "import platform; print(platform.machine(), platform.mac_ver())"
+          df -h /
+
+      - name: Build .app and .dmg
+        working-directory: meeting_summarizer
+        env:
+          APP_VERSION: ${{ github.event.inputs.version || github.ref_name }}
+        run: bash packaging/build_macos.sh
+
+      - name: Smoke test the bundle
+        working-directory: meeting_summarizer
+        run: bash packaging/smoke_test.sh
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: MeetingSummarizer-macos-${{ matrix.arch }}
+          path: meeting_summarizer/dist/*.dmg
+          if-no-files-found: error
+          # The payload is mostly already-compressed torch dylibs.
+          compression-level: 0
+          retention-days: 30
+
+      - name: Attach to release
+        if: startsWith(github.ref, 'refs/tags/')
+        uses: softprops/action-gh-release@v2
+        with:
+          files: meeting_summarizer/dist/*.dmg

@@ -1,0 +1,12 @@
+# Normalise to LF in the repository; Windows checkouts still get CRLF.
+* text=auto
+
+# These are executed by bash on macOS. A CRLF checkout makes every line fail
+# with: $'\r': command not found
+*.sh text eol=lf
+*.command text eol=lf
+
+# cmd.exe territory.
+*.bat text eol=crlf
+
+*.zip binary
