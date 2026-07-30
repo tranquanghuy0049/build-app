@@ -18,6 +18,17 @@ SRC_DIR = os.path.abspath(os.path.join(SPEC_DIR, os.pardir))
 VERSION = os.environ.get("APP_VERSION", "1.0.0")
 
 datas = [(os.path.join(SRC_DIR, "templates"), "templates")]
+
+# Speech model weights staged by packaging/fetch_model.py. Bundling them is what
+# lets the app transcribe offline with no first-use download; without this step
+# the directory is simply absent and the app falls back to downloading.
+MODELS_DIR = os.path.join(SRC_DIR, "models")
+if os.path.isdir(MODELS_DIR):
+    datas.append((MODELS_DIR, "models"))
+    print(f"spec: bundling models from {MODELS_DIR}")
+else:
+    print("spec: WARNING - no models/ directory; the app will download on first use")
+
 binaries = []
 hiddenimports = [
     "app_paths",
@@ -36,6 +47,8 @@ for pkg in (
     "huggingface_hub",
     "soundfile",
     "soxr",
+    # Gemini SDK: writes the meeting minutes and runs topic tracking.
+    "google.genai",
 ):
     pkg_datas, pkg_binaries, pkg_hidden = collect_all(pkg)
     datas += pkg_datas
@@ -74,6 +87,7 @@ for dist in (
     "pyyaml",
     "fsspec",
     "openai",
+    "google-genai",
 ):
     try:
         datas += copy_metadata(dist)

@@ -47,6 +47,17 @@ def output_dir() -> str:
     return base
 
 
+def bundled_model_dir(repo_id: str):
+    """Path to a speech model shipped inside the app, or None if not bundled.
+
+    Build-time staging writes each checkpoint to models/<repo_id with / as __>,
+    so a requested size that was not bundled falls through to a normal download
+    instead of silently loading the wrong weights.
+    """
+    path = os.path.join(resource_dir(), "models", repo_id.replace("/", "__"))
+    return path if os.path.isdir(path) else None
+
+
 def hf_cache_dir() -> str:
     """HuggingFace cache. Its default (~/.cache/huggingface) is fine, but pinning
     it keeps the several-hundred-MB PhoWhisper download with the rest of our state.

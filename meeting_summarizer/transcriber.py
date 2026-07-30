@@ -30,11 +30,25 @@ class Transcriber:
             return "cuda"
         return "cpu"
 
+    def _resolve_model_source(self):
+        """Use weights shipped inside the app when the requested size is the one
+        that was bundled, so the common path needs no network at all."""
+        try:
+            from app_paths import bundled_model_dir
+            local = bundled_model_dir(self.model)
+        except Exception:
+            local = None
+        if local:
+            print(f"  Using bundled weights: {local}")
+            return local
+        print(f"  {self.model} is not bundled; downloading on first use")
+        return self.model
+
     def _get_pipeline(self):
         if self._pipe is not None:
             return self._pipe
 
-        # Must be set before transformers is imported, or the download lands in
+        # Must be set before transformers is imported, or a download lands in
         # ~/.cache and is lost when the app's support directory is cleared.
         try:
             from app_paths import hf_cache_dir
@@ -49,13 +63,16 @@ class Transcriber:
         from transformers import pipeline
 
         device = self._select_device()
-        print(f"  Loading {self.model} on device={device} (first run downloads the model)")
+        source = self._resolve_model_source()
+        print(f"  Loading {self.model} on device={device}")
         self._pipe = pipeline(
             "automatic-speech-recognition",
-            model=self.model,
+            model=source,
             token=os.getenv("HF_TOKEN"),
             device=device,
-            # float16 on MPS produces NaNs with Whisper on several torch releases.
+            # Bundled weights are stored as float16 to halve the app size, but
+            # inference runs in float32: float16 on MPS produces NaNs with
+            # Whisper on several torch releases.
             torch_dtype=torch.float32,
         )
         return self._pipe

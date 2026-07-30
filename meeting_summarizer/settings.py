@@ -13,22 +13,27 @@ from app_paths import resource_dir, support_dir
 
 # name -> is_secret
 FIELDS = {
+    "GEMINI_API_KEY": True,
     "OPENAI_API_KEY": True,
     "GROQ_API_KEY": True,
     "HF_TOKEN": True,
+    "GEMINI_MODEL": False,
     "WHISPER_PROVIDER": False,
     "PHOWHISPER_MODEL": False,
     "PHOWHISPER_DEVICE": False,
 }
 
 DEFAULTS = {
-    "WHISPER_PROVIDER": "openai",
+    "GEMINI_MODEL": "gemini-2.5-flash",
+    # Offline by default: the PhoWhisper weights ship inside the app, so this
+    # works with no transcription API key and no download.
+    "WHISPER_PROVIDER": "phowhisper",
     "PHOWHISPER_MODEL": "vinai/PhoWhisper-small",
     "PHOWHISPER_DEVICE": "auto",
 }
 
 CHOICES = {
-    "WHISPER_PROVIDER": ("openai", "groq", "phowhisper"),
+    "WHISPER_PROVIDER": ("phowhisper", "openai", "groq"),
     "PHOWHISPER_DEVICE": ("auto", "mps", "cuda", "cpu"),
     "PHOWHISPER_MODEL": (
         "vinai/PhoWhisper-tiny",
@@ -36,6 +41,9 @@ CHOICES = {
         "vinai/PhoWhisper-small",
         "vinai/PhoWhisper-medium",
     ),
+    # Only Flash tiers remain on Gemini's free plan; Pro was removed from it in
+    # April 2026.
+    "GEMINI_MODEL": ("gemini-2.5-flash", "gemini-2.5-flash-lite"),
 }
 
 # Values shipped in .env.example. Treated as "not configured" so a user who never
@@ -46,6 +54,7 @@ PLACEHOLDERS = {
     "your-groq-api-key-here",
     "gsk-your-groq-key-here",
     "your-hf-token-here",
+    "your-gemini-api-key-here",
 }
 
 _HEADER = """# Meeting Summarizer configuration
@@ -54,12 +63,15 @@ _HEADER = """# Meeting Summarizer configuration
 """
 
 _COMMENTS = {
-    "OPENAI_API_KEY": "# Required for meeting summaries, and for transcription when\n"
-                      "# WHISPER_PROVIDER=openai. https://platform.openai.com/api-keys",
+    "GEMINI_API_KEY": "# Required: writes the meeting minutes.\n"
+                      "# Free key: https://aistudio.google.com/apikey",
+    "OPENAI_API_KEY": "# Only for WHISPER_PROVIDER=openai. https://platform.openai.com/api-keys",
     "GROQ_API_KEY": "# Only for WHISPER_PROVIDER=groq. Free: https://console.groq.com",
     "HF_TOKEN": "# Optional. Only needed for gated HuggingFace models.",
-    "WHISPER_PROVIDER": "# openai | groq | phowhisper (phowhisper runs locally, no API key)",
-    "PHOWHISPER_MODEL": "# Larger is more accurate but slower.",
+    "GEMINI_MODEL": "# gemini-2.5-flash | gemini-2.5-flash-lite (both on the free tier)",
+    "WHISPER_PROVIDER": "# phowhisper (offline, bundled, no key) | openai | groq",
+    "PHOWHISPER_MODEL": "# Larger is more accurate but slower. Only the bundled size\n"
+                        "# works offline; others download on first use.",
     "PHOWHISPER_DEVICE": "# auto picks Metal (mps) on Apple Silicon.",
 }
 
@@ -123,8 +135,8 @@ def readiness():
     problems = []
     provider = get("WHISPER_PROVIDER")
 
-    if not is_set("OPENAI_API_KEY"):
-        problems.append("Thiếu OPENAI_API_KEY — phần tóm tắt cuộc họp cần khoá này.")
+    if not is_set("GEMINI_API_KEY"):
+        problems.append("Thiếu Gemini API Key — phần viết biên bản cần khoá này.")
     if provider == "openai" and not is_set("OPENAI_API_KEY"):
         problems.append("Nhận dạng giọng nói đang dùng OpenAI nhưng chưa có OPENAI_API_KEY.")
     if provider == "groq" and not is_set("GROQ_API_KEY"):

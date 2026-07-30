@@ -313,22 +313,40 @@
     <p class="modal-sub">Khoá API được lưu trên máy này, không gửi đi đâu khác.</p>
 
     <div class="field">
-      <label>OpenAI API Key <span class="req">• bắt buộc</span></label>
-      <input type="password" id="set_OPENAI_API_KEY" placeholder="sk-..." autocomplete="off" spellcheck="false">
-      <div class="hint" id="hint_OPENAI_API_KEY">
-        Dùng để viết biên bản tóm tắt. Lấy khoá tại
-        <a href="https://platform.openai.com/api-keys" target="_blank" rel="noopener">platform.openai.com</a>.
+      <label>Gemini API Key <span class="req">• bắt buộc</span></label>
+      <input type="password" id="set_GEMINI_API_KEY" placeholder="AIza..." autocomplete="off" spellcheck="false">
+      <div class="hint" id="hint_GEMINI_API_KEY">
+        Dùng để viết biên bản cuộc họp. Lấy khoá miễn phí tại
+        <a href="https://aistudio.google.com/apikey" target="_blank" rel="noopener">aistudio.google.com/apikey</a>.
       </div>
+    </div>
+
+    <div class="field">
+      <label>Model Gemini</label>
+      <select id="set_GEMINI_MODEL">
+        <option value="gemini-2.5-flash">Flash — cân bằng, miễn phí</option>
+        <option value="gemini-2.5-flash-lite">Flash Lite — nhẹ hơn, đỡ chạm giới hạn</option>
+      </select>
+      <div class="hint">Gói miễn phí giới hạn khoảng 15 yêu cầu/phút.</div>
     </div>
 
     <div class="field">
       <label>Nhận dạng giọng nói bằng</label>
       <select id="set_WHISPER_PROVIDER" onchange="onProviderChange()">
+        <option value="phowhisper">PhoWhisper — offline, có sẵn trong app</option>
         <option value="openai">OpenAI Whisper — cần OpenAI key</option>
         <option value="groq">Groq Whisper — nhanh, có gói miễn phí</option>
-        <option value="phowhisper">PhoWhisper — chạy offline trên máy này</option>
       </select>
       <div class="hint" id="providerHint"></div>
+    </div>
+
+    <div class="field" id="field_OPENAI" style="display:none">
+      <label>OpenAI API Key <span class="req">• bắt buộc khi dùng OpenAI Whisper</span></label>
+      <input type="password" id="set_OPENAI_API_KEY" placeholder="sk-..." autocomplete="off" spellcheck="false">
+      <div class="hint" id="hint_OPENAI_API_KEY">
+        Lấy khoá tại
+        <a href="https://platform.openai.com/api-keys" target="_blank" rel="noopener">platform.openai.com</a>.
+      </div>
     </div>
 
     <div class="field" id="field_GROQ" style="display:none">
@@ -346,10 +364,10 @@
         <select id="set_PHOWHISPER_MODEL">
           <option value="vinai/PhoWhisper-tiny">tiny — nhanh nhất, kém chính xác nhất</option>
           <option value="vinai/PhoWhisper-base">base</option>
-          <option value="vinai/PhoWhisper-small">small — cân bằng</option>
+          <option value="vinai/PhoWhisper-small">small — có sẵn trong app</option>
           <option value="vinai/PhoWhisper-medium">medium — chính xác nhất, chậm</option>
         </select>
-        <div class="hint">Lần đầu dùng sẽ tải model về máy (cần mạng một lần).</div>
+        <div class="hint">Chỉ bản <strong>small</strong> đi kèm sẵn trong app. Chọn bản khác sẽ phải tải về (cần mạng một lần).</div>
       </div>
       <div class="field">
         <label>Thiết bị xử lý</label>
@@ -420,8 +438,8 @@
   const settingsMsg = document.getElementById('settingsMsg');
   const saveSettingsBtn = document.getElementById('saveSettingsBtn');
 
-  const SECRET_FIELDS = ['OPENAI_API_KEY', 'GROQ_API_KEY'];
-  const PLAIN_FIELDS = ['WHISPER_PROVIDER', 'PHOWHISPER_MODEL', 'PHOWHISPER_DEVICE'];
+  const SECRET_FIELDS = ['GEMINI_API_KEY', 'OPENAI_API_KEY', 'GROQ_API_KEY'];
+  const PLAIN_FIELDS = ['GEMINI_MODEL', 'WHISPER_PROVIDER', 'PHOWHISPER_MODEL', 'PHOWHISPER_DEVICE'];
   let settingsState = null;
 
   function applyReadiness(state) {
@@ -448,12 +466,13 @@
 
   function onProviderChange() {
     const p = document.getElementById('set_WHISPER_PROVIDER').value;
+    document.getElementById('field_OPENAI').style.display = p === 'openai' ? '' : 'none';
     document.getElementById('field_GROQ').style.display = p === 'groq' ? '' : 'none';
     document.getElementById('phowhisperOpts').style.display = p === 'phowhisper' ? '' : 'none';
     const hints = {
-      openai: 'Chính xác cao, tính phí theo thời lượng ghi âm.',
+      openai: 'Chính xác cao, tính phí theo thời lượng ghi âm. Cần thêm khoá OpenAI.',
       groq: 'Rất nhanh và có gói miễn phí, cần khoá Groq riêng.',
-      phowhisper: 'Chạy hoàn toàn trên máy này, không tốn phí nhận dạng. Phần tóm tắt vẫn cần OpenAI key.'
+      phowhisper: 'Đã có sẵn trong app, không cần mạng và không tốn phí. Âm thanh không rời khỏi máy này.'
     };
     document.getElementById('providerHint').textContent = hints[p] || '';
   }

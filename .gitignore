@@ -14,6 +14,10 @@ venv/
 build/
 dist/
 
+# Speech model weights staged at build time by packaging/fetch_model.py.
+# Hundreds of MB — fetched during CI, never committed.
+meeting_summarizer/models/
+
 # Contains a real .env; never distribute or commit it.
 meeting_summarizer/meeting_summarizer.zip
 

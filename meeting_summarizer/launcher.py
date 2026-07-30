@@ -122,6 +122,20 @@ def _selftest():
             raise FileNotFoundError(path)
         return f"{os.path.getsize(path)} bytes"
 
+    def _bundled_model():
+        import settings
+        from app_paths import bundled_model_dir
+        settings.load()
+        model_id = settings.get("PHOWHISPER_MODEL")
+        path = bundled_model_dir(model_id)
+        if not path:
+            raise FileNotFoundError(f"{model_id} not bundled")
+        size = sum(
+            os.path.getsize(os.path.join(root, f))
+            for root, _, files in os.walk(path) for f in files
+        )
+        return f"{model_id} ({size / (1024 * 1024):.0f} MB)"
+
     check("torch", _torch)
     check("transformers", _transformers)
     check("tokenizers", lambda: __import__("tokenizers").__version__)
@@ -133,12 +147,73 @@ def _selftest():
     check("openai", lambda: __import__("openai").__version__)
     check("web app", lambda: __import__("web").app.title)
     check("settings", lambda: f"{len(__import__('settings').FIELDS)} fields")
+    check("google.genai", lambda: __import__("google.genai", fromlist=["Client"]).__name__)
     check("templates", _templates)
+    check("bundled model", _bundled_model)
 
     if failures:
         print(f"\nSELFTEST FAILED: {', '.join(failures)}")
         return 1
     print("\nSELFTEST OK")
+    return 0
+
+
+def _selftest_transcribe():
+    """Transcribe real audio with the bundled model, with the network shut off.
+
+    The import-only selftest proves libraries are present; this proves the app
+    actually works. Audio is synthesised with macOS `say`, and HF_HUB_OFFLINE is
+    forced on so a pass also proves the weights really shipped inside the bundle
+    rather than being quietly downloaded.
+    """
+    import subprocess
+    import tempfile
+
+    import settings
+    from app_paths import bundled_model_dir
+
+    settings.load()
+    model_id = settings.get("PHOWHISPER_MODEL")
+
+    bundled = bundled_model_dir(model_id)
+    if not bundled:
+        print(f"  FAIL: {model_id} was not bundled into the app")
+        return 1
+    print(f"  bundled weights: {bundled}")
+
+    # If anything reaches for the network after this, it fails loudly instead of
+    # silently masking a missing-weights bug.
+    os.environ["HF_HUB_OFFLINE"] = "1"
+    os.environ["TRANSFORMERS_OFFLINE"] = "1"
+
+    tmp = tempfile.mkdtemp(prefix="selftest_")
+    wav = os.path.join(tmp, "sample.wav")
+    phrase = "Xin chào, đây là bản ghi thử nghiệm cho cuộc họp hôm nay."
+    try:
+        subprocess.run(
+            ["say", "-o", wav, "--data-format=LEI16@16000", phrase],
+            check=True, capture_output=True, timeout=120,
+        )
+    except Exception as e:
+        print(f"  FAIL: could not synthesise audio with `say`: {e}")
+        return 1
+    print(f"  input: {os.path.getsize(wav)} bytes of 16kHz PCM")
+
+    from transcriber import Transcriber
+
+    started = time.time()
+    transcriber = Transcriber(None, language="vi", model=model_id, mode="local")
+    text = transcriber.transcribe_file(wav)
+    elapsed = time.time() - started
+
+    print(f"  device: {Transcriber._select_device()}")
+    print(f"  elapsed: {elapsed:.1f}s")
+    print(f"  transcript: {text!r}")
+
+    if not text.strip():
+        print("  FAIL: transcription returned nothing (see errors above)")
+        return 1
+    print("\nTRANSCRIBE SELFTEST OK")
     return 0
 
 
@@ -150,6 +225,8 @@ def main():
 
     if "--selftest" in sys.argv:
         return _selftest()
+    if "--selftest-transcribe" in sys.argv:
+        return _selftest_transcribe()
 
     os.environ.setdefault("HF_HOME", hf_cache_dir())
     os.environ.setdefault("PYTORCH_ENABLE_MPS_FALLBACK", "1")

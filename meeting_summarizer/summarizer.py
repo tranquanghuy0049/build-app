@@ -1,4 +1,6 @@
-from openai import OpenAI
+"""Meeting minutes generation via the Gemini API."""
+
+SUMMARY_SYSTEM = "Bạn là chuyên gia viết biên bản cuộc họp chi tiết bằng tiếng Việt."
 
 SUMMARY_PROMPT = """Bạn là một chuyên gia viết biên bản cuộc họp. Nhiệm vụ của bạn là viết LẠI toàn bộ nội dung cuộc họp một cách CHI TIẾT, ĐẦY ĐỦ dựa trên transcript dưới đây.
 
@@ -16,8 +18,9 @@ Transcript cuộc họp:
 
 Hãy viết biên bản chi tiết bằng tiếng Việt, dài ít nhất 500-1000 từ, tái hiện đầy đủ nội dung cuộc họp."""
 
+
 class Summarizer:
-    def __init__(self, client: OpenAI, model="gpt-4o-mini"):
+    def __init__(self, client, model="gemini-2.5-flash"):
         self.client = client
         self.model = model
 
@@ -25,14 +28,34 @@ class Summarizer:
         if not transcript.strip():
             return "No transcript available to summarize."
 
-        response = self.client.chat.completions.create(
+        from google.genai import types
+
+        response = self.client.models.generate_content(
             model=self.model,
-            messages=[
-                {"role": "system", "content": "Bạn là chuyên gia viết biên bản cuộc họp chi tiết bằng tiếng Việt."},
-                {"role": "user", "content": SUMMARY_PROMPT.format(transcript=transcript)},
-            ],
-            temperature=0.7,
-            max_tokens=4096,
+            contents=SUMMARY_PROMPT.format(transcript=transcript),
+            config=types.GenerateContentConfig(
+                system_instruction=SUMMARY_SYSTEM,
+                temperature=0.7,
+                max_output_tokens=8192,
+                # Gemini 2.5 Flash thinks by default and those tokens are drawn
+                # from max_output_tokens. Writing minutes needs no reasoning
+                # budget, and leaving it on can consume the whole allowance and
+                # return empty text.
+                thinking_config=types.ThinkingConfig(thinking_budget=0),
+            ),
         )
 
-        return response.choices[0].message.content.strip()
+        text = (response.text or "").strip()
+        if not text:
+            raise RuntimeError(
+                f"Gemini không trả về nội dung (có thể bị bộ lọc an toàn chặn). "
+                f"Lý do: {_finish_reason(response)}"
+            )
+        return text
+
+
+def _finish_reason(response):
+    try:
+        return response.candidates[0].finish_reason
+    except (AttributeError, IndexError, TypeError):
+        return "không rõ"

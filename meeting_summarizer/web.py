@@ -40,6 +40,14 @@ class ConfigError(Exception):
     """Configuration the user can fix in Settings, as opposed to a bug."""
 
 
+def get_gemini_client():
+    """Client for everything text-generation: minutes and topic tracking."""
+    if not settings.is_set("GEMINI_API_KEY"):
+        raise ConfigError("Chưa có Gemini API Key. Mở Cài đặt (⚙) để nhập khoá.")
+    from google import genai
+    return genai.Client(api_key=settings.get("GEMINI_API_KEY"))
+
+
 def get_openai_client():
     if not settings.is_set("OPENAI_API_KEY"):
         raise ConfigError("Chưa có OPENAI_API_KEY. Mở Cài đặt (⚙) để nhập khoá.")
@@ -100,9 +108,14 @@ def _trim_overlap(new_text, prev_tail):
             return new_text[i:].strip()
     return new_text
 
-async def check_topic(chunk, goals, client, model="gpt-4o-mini"):
+async def check_topic(chunk, goals, client, model=None):
+    """Off-topic detection. Fires roughly every 30s of meeting, so it is by far
+    the heaviest consumer of the Gemini free tier's per-minute quota — keep it on
+    a Flash model and never let a failure here interrupt recording."""
     if not goals.strip():
         return None
+
+    model = model or settings.get("GEMINI_MODEL")
     prompt = f"""You are a meeting topic tracker. The meeting's main topic/goal is: {goals}
 
 The latest thing someone said: "{chunk}"
@@ -110,13 +123,20 @@ The latest thing someone said: "{chunk}"
 Respond in JSON only:
 {{"on_topic": true/false, "topic": "what they are talking about", "suggestion": "brief one-line suggestion if off-topic, empty string if on-topic"}}"""
     try:
-        response = client.chat.completions.create(
+        from google.genai import types
+        response = client.models.generate_content(
             model=model,
-            messages=[{"role": "user", "content": prompt}],
-            response_format={"type": "json_object"},
+            contents=prompt,
+            config=types.GenerateContentConfig(
+                response_mime_type="application/json",
+                temperature=0,
+                max_output_tokens=512,
+                thinking_config=types.ThinkingConfig(thinking_budget=0),
+            ),
         )
-        return json.loads(response.choices[0].message.content)
-    except:
+        return json.loads(response.text)
+    except Exception as e:
+        print(f"Topic check skipped: {type(e).__name__}: {e}")
         return None
 
 @app.get("/api/health")
@@ -167,11 +187,11 @@ async def transcribe_audio(
             f.write(content)
 
         whisper_client, whisper_model = get_whisper_client()
-        gpt_client = get_openai_client()
+        gemini_client = get_gemini_client()
 
         mode = transcriber_mode()
         transcriber = Transcriber(whisper_client, language=language or None, prompt=None, model=whisper_model, mode=mode)
-        summarizer = Summarizer(gpt_client, model="gpt-4o-mini")
+        summarizer = Summarizer(gemini_client, model=settings.get("GEMINI_MODEL"))
 
         text = transcriber.transcribe_file(audio_path)
         if not text.strip():
@@ -227,7 +247,7 @@ async def websocket_endpoint(websocket: WebSocket):
     # raised out of the handler and the browser saw only an opaque disconnect.
     try:
         whisper_client, whisper_model = get_whisper_client()
-        gpt_client = get_openai_client()
+        gemini_client = get_gemini_client()
     except ConfigError as e:
         await websocket.send_json({"type": "config_error", "text": str(e)})
         await websocket.close()
@@ -285,7 +305,7 @@ async def websocket_endpoint(websocket: WebSocket):
                                         topic_check_count += 1
                                         if meeting_goals and topic_check_count % 3 == 0:
                                             context = ". ".join(all_transcripts[-3:])
-                                            result = await check_topic(context, meeting_goals, gpt_client)
+                                            result = await check_topic(context, meeting_goals, gemini_client)
                                             if result and not result.get("on_topic", True):
                                                 await websocket.send_json({
                                                     "type": "topic_warning",
@@ -339,7 +359,7 @@ async def websocket_endpoint(websocket: WebSocket):
     full_transcript = "\n".join(all_transcripts)
     if full_transcript.strip():
         try:
-            summarizer = Summarizer(gpt_client, model="gpt-4o-mini")
+            summarizer = Summarizer(gemini_client, model=settings.get("GEMINI_MODEL"))
             summary = summarizer.summarize(full_transcript)
             title = meeting_title.strip() or f"Meeting_{datetime.now().strftime('%Y%m%d_%H%M%S')}"
             out_dir = output_dir()

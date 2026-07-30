@@ -12,6 +12,9 @@
 # after 2.2.2, so Intel Macs are stuck on that release.
 
 numpy>=1.24.0
+# Writes the meeting minutes and runs topic tracking.
+google-genai>=1.0.0
+# Still needed for the optional OpenAI/Groq transcription providers.
 openai>=1.0.0
 python-dotenv>=1.0.0
 fastapi>=0.110.0

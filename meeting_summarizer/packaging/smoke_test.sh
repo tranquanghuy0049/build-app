@@ -18,7 +18,7 @@ LOG="$SUPPORT_DIR/launcher.log"
 # config. Seed one so the smoke test does not hang forever.
 mkdir -p "$SUPPORT_DIR"
 cat > "$SUPPORT_DIR/.env" <<'ENV'
-OPENAI_API_KEY=sk-smoketest-not-a-real-key
+GEMINI_API_KEY=AIza-smoketest-not-a-real-key
 WHISPER_PROVIDER=phowhisper
 PHOWHISPER_MODEL=vinai/PhoWhisper-small
 PHOWHISPER_DEVICE=cpu
@@ -32,11 +32,16 @@ spctl --assess --type execute --verbose "$SRC_DIR/dist/MeetingSummarizer.app" 2>
   echo "(expected: rejected because the build is not notarised)"
 
 echo
-echo "==> 2/3 Dependency selftest"
+echo "==> 2/4 Dependency selftest"
 "$APP_BIN" --selftest
 
 echo
-echo "==> 3/3 Server starts and answers /api/health"
+echo "==> 3/4 Real transcription with the bundled model, network disabled"
+# The one check that proves the app does its job rather than merely starting.
+"$APP_BIN" --selftest-transcribe
+
+echo
+echo "==> 4/4 Server starts and answers /api/health"
 MEETING_SUMMARIZER_NO_BROWSER=1 "$APP_BIN" &
 APP_PID=$!
 trap 'kill "$APP_PID" 2>/dev/null || true' EXIT

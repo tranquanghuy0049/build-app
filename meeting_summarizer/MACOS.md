@@ -86,7 +86,12 @@ trong giao diện**, không cần mở file nào:
 
 1. Mở app → tự mở trình duyệt.
 2. Có banner vàng "Chưa cấu hình xong" và nút **⚙** ở góc phải sáng màu cam.
-3. Bấm ⚙ → nhập **OpenAI API Key** → **Lưu**.
+3. Bấm ⚙ → nhập **Gemini API Key** → **Lưu**.
+
+Chỉ cần **một khoá Gemini duy nhất** (lấy miễn phí tại
+[aistudio.google.com/apikey](https://aistudio.google.com/apikey)). Nhận dạng
+giọng nói chạy offline bằng PhoWhisper đã đóng gói sẵn trong app nên không cần
+khoá nào cho khâu đó.
 
 Đổi khoá hoặc đổi nhà cung cấp nhận dạng giọng nói sau này cũng vào cùng chỗ đó.
 Thay đổi có hiệu lực ngay, **không cần khởi động lại app**.
@@ -117,17 +122,33 @@ Cửa sổ trình duyệt đóng lại không làm server dừng. Chuột phải
 
 ---
 
-## 6. PhoWhisper (transcribe offline)
+## 6. PhoWhisper (transcribe offline, đóng gói sẵn)
 
-`WHISPER_PROVIDER=phowhisper` chạy model ngay trên máy, không gọi API để nhận
-dạng giọng nói. Lưu ý:
+Mặc định là `WHISPER_PROVIDER=phowhisper`. Trọng số `PhoWhisper-small` **nằm sẵn
+trong app**, cài xong là nhận dạng được ngay, không tải gì, không cần mạng.
 
-- **Lần đầu vẫn cần internet** để tải model (~1GB với `PhoWhisper-small`). Sau
-  đó chạy hoàn toàn offline. Muốn tải trước, mở app một lần khi còn mạng.
-- Trên Apple Silicon, model chạy trên **Metal (MPS)**. Nếu gặp lỗi lạ khi nhận
-  dạng, sửa `.env`: `PHOWHISPER_DEVICE=cpu` (chậm hơn nhưng ổn định).
-- **Phần tóm tắt vẫn gọi OpenAI API** — chỉ transcribe là offline.
-- Model to hơn (`PhoWhisper-medium`) chính xác hơn nhưng chậm hơn nhiều trên CPU.
+Cách đóng gói: [packaging/fetch_model.py](packaging/fetch_model.py) tải model lúc
+build và lưu vào `models/vinai__PhoWhisper-small`, spec đưa thư mục đó vào
+bundle, rồi [transcriber.py](transcriber.py) ưu tiên đường dẫn cục bộ đó.
+
+Trọng số lưu ở **float16** để `.dmg` bớt một nửa dung lượng, nhưng suy luận vẫn
+chạy ở float32 — float16 trên MPS gây NaN với Whisper ở nhiều bản torch.
+
+Đổi model đóng gói khi build:
+
+```bash
+PHOWHISPER_BUNDLE_MODEL=vinai/PhoWhisper-base bash packaging/build_macos.sh
+PHOWHISPER_BUNDLE_FP16=0   # giữ nguyên độ chính xác đầy đủ, file to gấp đôi
+```
+
+Lưu ý:
+
+- Trong ⚙ vẫn chọn được `tiny`/`base`/`medium`, nhưng **chỉ bản được đóng gói là
+  offline**. Chọn bản khác thì app sẽ tải về (cần mạng một lần).
+- Trên Apple Silicon model chạy bằng **Metal (MPS)**. Gặp lỗi lạ thì đổi
+  `PHOWHISPER_DEVICE=cpu` trong ⚙ — chậm hơn nhưng ổn định nhất.
+- **Phần viết biên bản gọi Gemini API** — chỉ khâu nhận dạng là offline. Âm thanh
+  không bao giờ rời khỏi máy; chỉ bản chữ mới gửi lên Gemini.
 
 ---
 
