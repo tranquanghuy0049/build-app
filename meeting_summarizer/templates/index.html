@@ -617,6 +617,24 @@
           downloadSummary.href = '/api/download/' + data.summary_file;
           results.style.display = 'block';
           summaryReceived = true;
+        } else if (data.type === 'summary_error') {
+          // Transcription succeeded and was saved; only the summary failed.
+          // Show the transcript anyway rather than losing the meeting.
+          statusLine.textContent = '⚠️ ' + data.text;
+          statusLine.className = 'status-line';
+          liveIndicator.classList.remove('active');
+          transcriptContent.textContent = data.transcript;
+          summaryContent.textContent =
+            data.text + '\n\nBản ghi lời nói bên trên vẫn được lưu đầy đủ.'
+            + (data.detail ? '\n\nChi tiết kỹ thuật:\n' + data.detail : '');
+          if (data.transcript_file) {
+            downloadTranscript.href = '/api/download/' + data.transcript_file;
+            downloadTranscript.style.display = '';
+          }
+          downloadSummary.style.display = 'none';
+          results.style.display = 'block';
+          summaryReceived = true;
+          showError(data.text);
         } else if (data.type === 'done') {
           finishUp();
         }
@@ -626,6 +644,9 @@
       ws.onclose = () => { if (!summaryReceived) finishUp(); };
 
       recording = true; seconds = 0; summaryReceived = false; allTranscripts = [];
+      // Undo any hiding left over from a previous run's summary failure.
+      downloadTranscript.style.display = '';
+      downloadSummary.style.display = '';
       recordBtn.classList.add('recording');
       recordBtn.querySelector('.icon').textContent = '⏹';
       recordBtn.querySelector('.status-text').textContent = 'Kết thúc';

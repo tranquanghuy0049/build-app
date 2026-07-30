@@ -69,6 +69,30 @@ def get_whisper_client(provider: str = None):
 def transcriber_mode():
     return "local" if settings.get("WHISPER_PROVIDER") == "phowhisper" else "api"
 
+
+def _explain_summary_error(exc):
+    """Turn a Gemini failure into something the user can act on.
+
+    The raw SDK message is English and full of API jargon; what a user needs to
+    know is which of the four fixable things went wrong.
+    """
+    msg = str(exc).lower()
+    model = settings.get("GEMINI_MODEL")
+
+    if "api key" in msg or "api_key_invalid" in msg or "unauthenticated" in msg:
+        return "Mã khoá Gemini không hợp lệ. Mở Cài đặt (⚙) và dán lại khoá."
+    if "permission" in msg or "403" in msg:
+        return "Mã khoá Gemini không có quyền dùng model này. Thử tạo khoá mới tại aistudio.google.com/apikey."
+    if "not found" in msg or "404" in msg:
+        return f"Không tìm thấy model '{model}'. Mở Cài đặt (⚙) và chọn model khác."
+    if "quota" in msg or "resource_exhausted" in msg or "429" in msg or "rate limit" in msg:
+        return "Đã vượt hạn mức miễn phí của Gemini. Đợi vài phút rồi thử lại, hoặc đổi sang Flash Lite trong Cài đặt (⚙)."
+    if "deadline" in msg or "timeout" in msg or "connection" in msg or "network" in msg or "resolve" in msg:
+        return "Không kết nối được tới Gemini. Kiểm tra mạng internet rồi thử lại."
+    if "safety" in msg or "blocked" in msg or "không trả về nội dung" in str(exc):
+        return "Gemini từ chối trả lời nội dung này (bộ lọc an toàn)."
+    return "Không tạo được biên bản. Bản ghi lời nói vẫn được lưu lại."
+
 def _noise_reduce(samples, noise_floor=None):
     if samples is None or len(samples) == 0:
         return samples, noise_floor
@@ -358,17 +382,25 @@ async def websocket_endpoint(websocket: WebSocket):
 
     full_transcript = "\n".join(all_transcripts)
     if full_transcript.strip():
+        title = meeting_title.strip() or f"Meeting_{datetime.now().strftime('%Y%m%d_%H%M%S')}"
+        out_dir = output_dir()
+        timestamp_str = datetime.now().strftime("%Y%m%d_%H%M%S")
+        session_id = str(uuid.uuid4())[:8]
+        tf = f"transcript_{timestamp_str}_{session_id}.md"
+        sf = f"summary_{timestamp_str}_{session_id}.md"
+
+        # Save the transcript before attempting the summary. An hour of
+        # recording must not be lost because one API call failed.
+        try:
+            with open(os.path.join(out_dir, tf), "w", encoding="utf-8") as f:
+                f.write(f"# {title}\n\n## Transcript\n\n{full_transcript}")
+        except OSError as e:
+            print(f"WS transcript save error: {e}")
+            tf = None
+
         try:
             summarizer = Summarizer(gemini_client, model=settings.get("GEMINI_MODEL"))
             summary = summarizer.summarize(full_transcript)
-            title = meeting_title.strip() or f"Meeting_{datetime.now().strftime('%Y%m%d_%H%M%S')}"
-            out_dir = output_dir()
-            timestamp_str = datetime.now().strftime("%Y%m%d_%H%M%S")
-            session_id = str(uuid.uuid4())[:8]
-            tf = f"transcript_{timestamp_str}_{session_id}.md"
-            sf = f"summary_{timestamp_str}_{session_id}.md"
-            with open(os.path.join(out_dir, tf), "w", encoding="utf-8") as f:
-                f.write(f"# {title}\n\n## Transcript\n\n{full_transcript}")
             with open(os.path.join(out_dir, sf), "w", encoding="utf-8") as f:
                 f.write(f"# {title}\n\n## Summary\n\n{summary}")
             await websocket.send_json({
@@ -376,7 +408,18 @@ async def websocket_endpoint(websocket: WebSocket):
                 "summary": summary, "transcript_file": tf, "summary_file": sf,
             })
         except Exception as e:
-            print(f"WS summary error: {e}")
+            # Report the real reason to the browser. Swallowing it into the log
+            # left users staring at a generic "no result" message with no idea
+            # whether the key, the network or the model was at fault.
+            detail = f"{type(e).__name__}: {e}"
+            print(f"WS summary error: {detail}")
+            await websocket.send_json({
+                "type": "summary_error",
+                "text": _explain_summary_error(e),
+                "detail": detail[:300],
+                "transcript": full_transcript,
+                "transcript_file": tf,
+            })
 
     await websocket.send_json({"type": "done"})
 

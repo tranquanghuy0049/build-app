@@ -6,22 +6,12 @@
 Ứng dụng này ghi âm cuộc họp, tự động chuyển lời nói thành văn bản, rồi
 viết biên bản cuộc họp bằng tiếng Việt.
 
-Bạn không cần biết gì về máy tính để dùng. Chỉ cần làm theo các bước dưới đây.
-
 
 -------------------------------------------------------------------------------
-BƯỚC 1: KIỂM TRA MÁY CỦA BẠN
+BƯỚC 1: CẤU HÌNH SỬ DỤNG
 -------------------------------------------------------------------------------
 
-Có hai loại máy Mac, và mỗi loại dùng một file khác nhau. Kiểm tra như sau:
-
-  - Bấm vào biểu tượng quả táo ở góc trên bên trái màn hình
-  - Chọn "About This Mac"
-
-Nếu bạn thấy chữ M1, M2, M3 hoặc M4  ->  dùng file có chữ "arm64"
-Nếu bạn thấy chữ Intel               ->  dùng file có chữ "x86_64"
-
-Dùng sai file thì ứng dụng sẽ không mở được.
+Phiên bản này được build cho máy Apple Silicon
 
 
 -------------------------------------------------------------------------------
