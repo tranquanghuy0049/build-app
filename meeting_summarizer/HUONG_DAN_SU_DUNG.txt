@@ -1,234 +1,228 @@
 ===============================================================================
-                      MEETING SUMMARIZER - HUONG DAN SU DUNG
-                              (Ban cho macOS)
+                        MEETING SUMMARIZER
+                  Hướng dẫn sử dụng cho máy Mac
 ===============================================================================
 
-Ung dung ghi am cuoc hop, tu dong chuyen thanh van ban va viet bien ban
-chi tiet bang tieng Viet.
+Ứng dụng này ghi âm cuộc họp, tự động chuyển lời nói thành văn bản, rồi
+viết biên bản cuộc họp bằng tiếng Việt.
+
+Bạn không cần biết gì về máy tính để dùng. Chỉ cần làm theo các bước dưới đây.
 
 
 -------------------------------------------------------------------------------
-1. MAY CAN GI
+BƯỚC 1: KIỂM TRA MÁY CỦA BẠN
 -------------------------------------------------------------------------------
 
-  - macOS 11 (Big Sur) tro len
-  - Mot trinh duyet (Safari co san tren may, khong can cai them)
-  - Mot khoa API Gemini mien phi (huong dan lay o muc 3)
+Có hai loại máy Mac, và mỗi loại dùng một file khác nhau. Kiểm tra như sau:
 
-KHONG can cai Python, khong can cai them thu vien nao. Tat ca da nam san
-trong ung dung, ke ca model nhan dang giong noi.
+  - Bấm vào biểu tượng quả táo ở góc trên bên trái màn hình
+  - Chọn "About This Mac"
 
-Chon dung ban cho may cua ban:
-  - Vao menu Apple () o goc tren trai > About This Mac
-  - Neu thay "Apple M1 / M2 / M3 / M4"  ->  dung ban  arm64
-  - Neu thay "Intel"                    ->  dung ban  x86_64
-Dua sai ban thi ung dung se khong chay duoc.
+Nếu bạn thấy chữ M1, M2, M3 hoặc M4  ->  dùng file có chữ "arm64"
+Nếu bạn thấy chữ Intel               ->  dùng file có chữ "x86_64"
+
+Dùng sai file thì ứng dụng sẽ không mở được.
 
 
 -------------------------------------------------------------------------------
-2. CAI DAT
+BƯỚC 2: CÀI ĐẶT
 -------------------------------------------------------------------------------
 
-  Buoc 1. Nhay dup vao file .dmg
-  Buoc 2. Keo bieu tuong "MeetingSummarizer" vao thu muc "Applications"
-  Buoc 3. Dong cua so, thao (eject) o dia .dmg
-  Buoc 4. Mo Applications, nhay dup "MeetingSummarizer"
+  1. Nháy đúp vào file có đuôi .dmg
+  2. Một cửa sổ mở ra. Kéo biểu tượng "MeetingSummarizer" sang thư mục
+     "Applications" ngay bên cạnh
+  3. Đóng cửa sổ đó lại
 
-
-  *** LAN DAU MO SE BI MACOS CHAN - DAY LA BINH THUONG ***
-
-Ung dung chua duoc Apple chung thuc (notarize), nen macOS se hien bang
-canh bao dai y "Apple could not verify this app is free of malware".
-Ung dung khong co van de gi, chi la chua mua chung chi cua Apple.
-
-Cach mo:
-
-  * macOS 15 (Sequoia) tro len:
-      1. Mo ung dung mot lan (se bi chan, bam OK)
-      2. Vao  > System Settings > Privacy & Security
-      3. Keo xuong cuoi trang, tim dong noi ve MeetingSummarizer
-      4. Bam "Open Anyway", nhap mat khau may neu duoc hoi
-      5. Mo lai ung dung
-
-  * macOS 14 tro xuong:
-      1. Nhay CHUOT PHAI vao ung dung trong Applications
-      2. Chon "Open"
-      3. Trong hop thoai, bam "Open" mot lan nua
-
-Chi phai lam mot lan duy nhat. Nhung lan sau mo binh thuong.
+Xong. Ứng dụng đã được cài.
 
 
 -------------------------------------------------------------------------------
-3. LAY KHOA API GEMINI (MIEN PHI)
+BƯỚC 3: MỞ ỨNG DỤNG LẦN ĐẦU
 -------------------------------------------------------------------------------
 
-Khoa nay dung de viet bien ban cuoc hop. Chi can mot khoa duy nhat.
+Mở thư mục Applications, tìm "MeetingSummarizer" và nháy đúp vào.
 
-  1. Mo trang:  https://aistudio.google.com/apikey
-  2. Dang nhap bang tai khoan Google
-  3. Bam "Create API key"
-  4. Sao chep chuoi khoa (bat dau bang "AIza...")
+Lần đầu tiên, máy Mac sẽ hiện một bảng thông báo chặn lại, đại ý là không
+xác minh được ứng dụng này.
 
-Goi mien phi cho phep khoang 15 yeu cau moi phut va khoang 1000-1500 yeu cau
-moi ngay - du cho nhieu cuoc hop trong ngay.
+ĐÂY LÀ BÌNH THƯỜNG. Ứng dụng không có vấn đề gì. Máy Mac chặn mọi ứng
+dụng không mua chứng nhận của Apple, kể cả ứng dụng hoàn toàn lành.
 
-LUU Y VE BAO MAT: noi dung van ban cuoc hop se duoc gui len Gemini de viet
-bien ban. Neu cuoc hop co thong tin bao mat, hay doc ky dieu khoan su dung
-cua goi mien phi truoc khi dung. Rieng phan AM THANH thi khong bao gio roi
-khoi may nay.
+Cách mở:
 
+  1. Bấm OK để tắt bảng thông báo
+  2. Bấm biểu tượng quả táo ở góc trên trái
+  3. Chọn "System Settings"
+  4. Chọn "Privacy & Security" ở cột bên trái
+  5. Kéo xuống dưới cùng, bạn sẽ thấy một dòng nhắc về MeetingSummarizer
+  6. Bấm nút "Open Anyway"
+  7. Nhập mật khẩu máy nếu được hỏi
+  8. Mở lại ứng dụng
 
--------------------------------------------------------------------------------
-4. CAU HINH LAN DAU
--------------------------------------------------------------------------------
+Chỉ phải làm một lần duy nhất. Những lần sau mở bình thường.
 
-Mo ung dung. No se tu mo trinh duyet.
-
-Ban se thay:
-  - Mot bang mau vang: "Chua cau hinh xong"
-  - Nut banh xe rang (bieu tuong hinh banh rang) o goc tren phai, mau cam
-
-  1. Bam vao nut banh rang
-  2. Dan khoa Gemini vao o "Gemini API Key"
-  3. Bam "Luu"
-
-Bang mau vang bien mat la xong. Khoa duoc luu tren may nay, khong gui di
-dau khac.
-
-Muon doi khoa sau nay: bam lai nut banh rang, dan khoa moi, bam Luu.
-Co hieu luc ngay, khong can mo lai ung dung.
+(Nếu máy bạn dùng bản macOS cũ hơn, cách nhanh hơn là: nháy CHUỘT PHẢI
+vào ứng dụng, chọn "Open", rồi bấm "Open" lần nữa.)
 
 
 -------------------------------------------------------------------------------
-5. GHI AM MOT CUOC HOP
+BƯỚC 4: LẤY MÃ KHOÁ (MIỄN PHÍ)
 -------------------------------------------------------------------------------
 
-  1. (Khong bat buoc) Nhap tieu de cuoc hop
-  2. (Khong bat buoc) Nhap muc tieu / chu de chinh cua cuoc hop
-     -> Neu nhap, ung dung se canh bao khi moi nguoi noi lac de tai
-  3. Bam nut micro tron o giua
-  4. Lan dau tien, trinh duyet se hoi quyen dung micro -> chon "Allow"
-  5. Noi binh thuong. Van ban se hien dan len ngay trong luc hop
-  6. Xong thi bam lai nut micro de dung
+Ứng dụng cần một mã khoá của Google để viết biên bản. Mã này miễn phí.
 
-Sau khi dung, ung dung se viet bien ban chi tiet. Cho mot lat.
+  1. Mở trình duyệt, vào địa chỉ:   https://aistudio.google.com/apikey
+  2. Đăng nhập bằng Gmail của bạn
+  3. Bấm nút "Create API key"
+  4. Một dãy chữ và số hiện ra, bắt đầu bằng "AIza..."
+  5. Sao chép toàn bộ dãy đó (bấm vào biểu tượng copy bên cạnh)
 
-LUU Y: lan nhan dang dau tien sau khi mo ung dung se cham hon (khoang
-10-30 giay) vi phai nap model vao bo nho. Ung dung KHONG bi treo, chi la
-dang chuan bi. Tu lan thu hai tro di se nhanh.
+Giữ dãy này lại, bước sau sẽ cần dán vào.
 
 
 -------------------------------------------------------------------------------
-6. KET QUA LUU O DAU
+BƯỚC 5: NHẬP MÃ KHOÁ VÀO ỨNG DỤNG
 -------------------------------------------------------------------------------
 
-Ban co the bam "Sao chep" hoac "Tai xuong .md" ngay tren trang.
+Mở ứng dụng. Nó sẽ tự mở một trang trong trình duyệt.
 
-File cung duoc tu dong luu vao:
+Bạn sẽ thấy một bảng màu vàng báo "Chưa cấu hình xong", và một nút hình
+bánh xe răng màu cam ở góc trên bên phải.
 
-      ~/Documents/MeetingSummarizer/
+  1. Bấm vào nút bánh xe răng
+  2. Dán mã khoá vào ô "Gemini API Key"
+  3. Bấm "Lưu"
 
-Trong do co hai loai file cho moi cuoc hop:
-  - transcript_...md   : toan bo loi noi da nhan dang
-  - summary_...md      : bien ban chi tiet
+Bảng màu vàng biến mất là xong. Từ giờ dùng được.
 
-Cach mo nhanh thu muc: trong Finder bam Cmd+Shift+G roi dan duong dan tren.
-
-
--------------------------------------------------------------------------------
-7. THOAT UNG DUNG
--------------------------------------------------------------------------------
-
-Dong tab trinh duyet KHONG lam ung dung tat. May chu van chay ngam.
-
-Muon tat hoan toan:
-  - Nhay chuot phai vao bieu tuong MeetingSummarizer tren Dock
-  - Chon "Quit"
+Mã khoá chỉ được lưu trên máy này. Muốn đổi mã khác sau này thì bấm lại
+nút bánh xe răng, dán mã mới, bấm Lưu.
 
 
 -------------------------------------------------------------------------------
-8. CAC LUA CHON TRONG PHAN CAI DAT
+BƯỚC 6: GHI ÂM MỘT CUỘC HỌP
 -------------------------------------------------------------------------------
 
-Bam nut banh rang de mo. Cac lua chon:
+  1. Gõ tên cuộc họp vào ô trên cùng (không bắt buộc)
 
-  * Model Gemini
-      - Flash       : mac dinh, can bang
-      - Flash Lite  : nhe hon, dung khi bi bao vuot gioi han
+  2. Ô bên dưới, gõ chủ đề chính của cuộc họp (không bắt buộc)
+     Nếu bạn gõ, ứng dụng sẽ nhắc khi mọi người nói lạc sang chuyện khác.
 
-  * Nhan dang giong noi bang
-      - PhoWhisper  : MAC DINH. Chay ngay tren may, khong can mang,
-                      khong ton phi. Am thanh khong roi khoi may.
-      - OpenAI      : can them khoa OpenAI rieng, co tinh phi
-      - Groq        : can them khoa Groq rieng, co goi mien phi
+  3. Bấm nút tròn hình micro ở giữa
 
-  * Model PhoWhisper
-      - Chi ban "small" duoc dong goi san trong ung dung.
-      - Chon ban khac (tiny/base/medium) thi ung dung se phai TAI VE,
-        can mang mot lan.
+  4. Lần đầu, trình duyệt hỏi có cho dùng micro không -> chọn "Allow"
 
-  * Thiet bi xu ly
-      - Tu dong : dung GPU (Metal) neu may ho tro. Nhanh hon.
-      - CPU     : cham hon nhung on dinh nhat.
-        -> Neu nhan dang bi loi la, hay doi sang CPU.
+  5. Nói bình thường. Chữ sẽ hiện dần lên ngay trong lúc họp.
+
+  6. Họp xong, bấm lại nút micro để dừng.
+
+Sau khi dừng, ứng dụng viết biên bản. Chờ một lát là có.
 
 
--------------------------------------------------------------------------------
-9. KHI GAP SU CO
--------------------------------------------------------------------------------
+LƯU Ý QUAN TRỌNG:
 
-Truoc khi hoi, hay lay file ghi log loi:
-
-      ~/Library/Application Support/MeetingSummarizer/launcher.log
-
-Cach mo: trong Finder bam Cmd+Shift+G, dan duong dan tren, bam Enter.
-
-
-  VAN DE: Mo ung dung thi bi bao khong the mo / bi chan
-  -> Xem lai muc 2, phan "LAN DAU MO SE BI MACOS CHAN"
-
-  VAN DE: Bao "damaged and can't be opened"
-  -> Rat co the tai sai ban (Intel / Apple Silicon). Xem muc 1.
-
-  VAN DE: Trinh duyet khong tu mo
-  -> Tu mo trinh duyet va vao dia chi:  http://127.0.0.1:8000
-
-  VAN DE: Bam micro nhung khong hien chu nao
-  -> Kiem tra da cho phep quyen micro chua:
-      > System Settings > Privacy & Security > Microphone
-     Bat cho trinh duyet dang dung (Safari / Chrome).
-  -> Thu noi to hon va gan micro hon.
-
-  VAN DE: Co van ban nhung khong ra bien ban
-  -> Phan bien ban can MANG va can khoa Gemini dung.
-     Kiem tra ket noi mang, va bam banh rang xem khoa con dung khong.
-
-  VAN DE: Bao vuot gioi han (rate limit / quota)
-  -> Goi mien phi Gemini co han muc. Doi vai phut roi thu lai,
-     hoac vao banh rang doi sang "Flash Lite".
-  -> Neu ban co nhap muc tieu cuoc hop, tinh nang canh bao lac de tai se
-     goi API kha thuong xuyen. Bo trong o muc tieu se giam dang ke.
-
-  VAN DE: Nhan dang rat cham
-  -> Lan dau sau khi mo ung dung luon cham (nap model). Tu lan hai se nhanh.
-  -> Neu van cham, vao banh rang doi "Model PhoWhisper" sang "base" hoac
-     "tiny" (se phai tai ve mot lan).
+Lần nhận dạng đầu tiên sau khi mở ứng dụng sẽ chậm, khoảng 10 đến 30 giây
+mới thấy chữ đầu tiên. Ứng dụng KHÔNG bị treo, nó chỉ đang chuẩn bị. Từ
+lần thứ hai trở đi sẽ nhanh ngay.
 
 
 -------------------------------------------------------------------------------
-10. MAY DIEU NEN BIET
+BƯỚC 7: LẤY KẾT QUẢ
 -------------------------------------------------------------------------------
 
-  - Nhan dang giong noi chay HOAN TOAN tren may nay. Am thanh cuoc hop
-    khong duoc gui len internet.
+Ngay trên trang có hai nút cho mỗi phần:
+  - "Sao chép"      : copy để dán vào Word, Zalo, email...
+  - "Tải xuống .md" : lưu thành file
 
-  - Chi co VAN BAN da nhan dang moi duoc gui len Gemini de viet bien ban.
-    Buoc nay can mang.
+Ngoài ra ứng dụng cũng tự lưu sẵn vào máy, ở thư mục:
 
-  - Ung dung mo ra trong trinh duyet. Do la thiet ke binh thuong, khong
-    phai loi. Nhieu ung dung khac cung lam vay.
+      Documents  ->  MeetingSummarizer
 
-  - Ung dung khong tu dong cap nhat. Muon ban moi thi tai file .dmg moi
-    va cai de len.
+Mỗi cuộc họp có hai file: một file là toàn bộ lời nói, một file là biên bản.
+
+
+-------------------------------------------------------------------------------
+BƯỚC 8: TẮT ỨNG DỤNG
+-------------------------------------------------------------------------------
+
+Đóng tab trình duyệt KHÔNG làm ứng dụng tắt. Nó vẫn chạy ngầm.
+
+Muốn tắt hẳn:
+  - Nháy chuột phải vào biểu tượng MeetingSummarizer ở thanh Dock dưới
+    màn hình
+  - Chọn "Quit"
+
+
+-------------------------------------------------------------------------------
+KHI GẶP LỖI
+-------------------------------------------------------------------------------
+
+* Bấm micro rồi mà không thấy chữ nào hiện ra
+
+  Kiểm tra xem đã cho phép dùng micro chưa:
+  Quả táo > System Settings > Privacy & Security > Microphone
+  Bật cho trình duyệt bạn đang dùng (Safari hoặc Chrome).
+
+  Cũng thử nói to hơn và ngồi gần micro hơn.
+
+
+* Có chữ rồi nhưng không ra biên bản
+
+  Phần viết biên bản cần có mạng internet và cần mã khoá đúng.
+  Kiểm tra mạng, rồi bấm nút bánh xe răng xem mã khoá còn đúng không.
+
+
+* Báo lỗi vượt giới hạn
+
+  Mã khoá miễn phí có hạn mức mỗi ngày. Đợi vài phút rồi thử lại.
+
+  Nếu hay bị, hãy để trống ô "chủ đề cuộc họp" ở bước 6. Tính năng nhắc
+  lạc chủ đề là thứ dùng nhiều hạn mức nhất.
+
+
+* Nhận dạng quá chậm
+
+  Bấm nút bánh xe răng, tìm mục "Thiết bị xử lý", đổi sang "CPU".
+  Chậm hơn một chút nhưng ổn định hơn.
+
+
+* Trình duyệt không tự mở
+
+  Tự mở trình duyệt và gõ địa chỉ:   127.0.0.1:8000
+
+
+* Báo ứng dụng bị hỏng, không mở được
+
+  Rất có thể bạn tải sai file. Xem lại BƯỚC 1 để chọn đúng loại máy.
+
+
+* Vẫn không được
+
+  Có một file ghi lại lỗi, gửi file này cho người hỗ trợ bạn:
+
+  Trong Finder, bấm đồng thời ba phím  Cmd + Shift + G
+  Dán dòng này vào rồi bấm Enter:
+
+      ~/Library/Application Support/MeetingSummarizer/
+
+  File cần gửi tên là  launcher.log
+
+
+-------------------------------------------------------------------------------
+VÀI ĐIỀU NÊN BIẾT
+-------------------------------------------------------------------------------
+
+* Phần nhận dạng giọng nói chạy hoàn toàn trên máy bạn. Âm thanh cuộc họp
+  KHÔNG được gửi lên mạng. Bạn có thể ghi âm khi không có internet.
+
+* Chỉ phần văn bản đã nhận dạng mới được gửi cho Google để viết biên bản.
+  Bước này cần internet. Nếu cuộc họp có nội dung cần giữ kín, hãy cân
+  nhắc điều này.
+
+* Ứng dụng mở ra trong trình duyệt. Đó là thiết kế bình thường, không
+  phải lỗi.
+
+* Ứng dụng không tự cập nhật. Muốn dùng bản mới thì tải file .dmg mới và
+  cài lại lên bản cũ.
 
 ===============================================================================
