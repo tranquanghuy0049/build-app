@@ -109,6 +109,10 @@ def main():
             "automatic-speech-recognition",
             model=dest,
             torch_dtype=torch.float32,
+            # Forced to CPU: the macOS CI runner reports mps as available but
+            # cannot actually allocate on it ("MPS allocated: 0 bytes"). This
+            # step checks the staged files, not the compute backend.
+            device="cpu",
         )
         # One second of near-silence: we are checking that inference executes,
         # not what it says.

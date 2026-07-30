@@ -206,7 +206,11 @@ def _selftest_transcribe():
     text = transcriber.transcribe_file(wav)
     elapsed = time.time() - started
 
-    print(f"  device: {Transcriber._select_device()}")
+    selected = Transcriber._select_device()
+    actual = "cpu" if transcriber._force_cpu else selected
+    print(f"  device selected: {selected}")
+    print(f"  device used:     {actual}"
+          + ("  (fell back from " + selected + ")" if actual != selected else ""))
     print(f"  elapsed: {elapsed:.1f}s")
     print(f"  transcript: {text!r}")
 

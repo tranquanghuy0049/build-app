@@ -21,8 +21,12 @@ cat > "$SUPPORT_DIR/.env" <<'ENV'
 GEMINI_API_KEY=AIza-smoketest-not-a-real-key
 WHISPER_PROVIDER=phowhisper
 PHOWHISPER_MODEL=vinai/PhoWhisper-small
-PHOWHISPER_DEVICE=cpu
+PHOWHISPER_DEVICE=auto
 ENV
+# Deliberately "auto", the shipped default. The CI runner reports Metal as
+# available but cannot allocate on it, which is precisely the condition the
+# mps->cpu fallback exists for — so this configuration tests that fallback
+# instead of sidestepping it.
 
 echo "==> 1/3 Gatekeeper assessment"
 # Ad-hoc signed and unnotarised, so spctl is *expected* to reject it. What

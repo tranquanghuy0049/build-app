@@ -14,6 +14,8 @@ class Transcriber:
         self.model = model
         self.mode = mode
         self._pipe = None
+        # Set once the GPU backend has proven unusable on this machine.
+        self._force_cpu = False
 
     @staticmethod
     def _select_device():
@@ -62,19 +64,33 @@ class Transcriber:
         import torch
         from transformers import pipeline
 
-        device = self._select_device()
         source = self._resolve_model_source()
-        print(f"  Loading {self.model} on device={device}")
-        self._pipe = pipeline(
-            "automatic-speech-recognition",
-            model=source,
-            token=os.getenv("HF_TOKEN"),
-            device=device,
-            # Bundled weights are stored as float16 to halve the app size, but
-            # inference runs in float32: float16 on MPS produces NaNs with
-            # Whisper on several torch releases.
-            torch_dtype=torch.float32,
-        )
+        device = "cpu" if self._force_cpu else self._select_device()
+
+        def build(dev):
+            print(f"  Loading {self.model} on device={dev}")
+            return pipeline(
+                "automatic-speech-recognition",
+                model=source,
+                token=os.getenv("HF_TOKEN"),
+                device=dev,
+                # Bundled weights are stored as float16 to halve the app size,
+                # but inference runs in float32: float16 on MPS produces NaNs
+                # with Whisper on several torch releases.
+                torch_dtype=torch.float32,
+            )
+
+        try:
+            self._pipe = build(device)
+        except Exception as e:
+            if device == "cpu":
+                raise
+            # Metal can be reported as available yet fail to allocate — that is
+            # exactly what happens on virtualised Macs. CPU is slower but always
+            # works, and a slow transcript beats none.
+            print(f"  {device} failed ({type(e).__name__}: {e}); retrying on CPU")
+            self._force_cpu = True
+            self._pipe = build("cpu")
         return self._pipe
 
     def transcribe_file(self, filepath: str) -> str:
@@ -137,6 +153,13 @@ class Transcriber:
                 return result["text"].strip()
             except Exception as e:
                 print(f"  Local transcription attempt {attempt + 1} failed: {e}")
+                # The GPU backend can also fail mid-inference rather than at load
+                # time. Drop to CPU and rebuild before retrying, otherwise all
+                # three attempts fail identically.
+                if not self._force_cpu:
+                    print("  Rebuilding the pipeline on CPU for the retry")
+                    self._force_cpu = True
+                    self._pipe = None
                 if attempt < 2:
                     time.sleep(2)
         return ""
