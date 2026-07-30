@@ -20,6 +20,9 @@ python-dotenv>=1.0.0
 fastapi>=0.110.0
 uvicorn[standard]>=0.27.0
 python-multipart>=0.0.6
-transformers>=4.40.0
+# Capped below 5.0: transformers 5.x changed what Processor.save_pretrained
+# writes (no preprocessor_config.json), which breaks staging PhoWhisper for
+# bundling. PhoWhisper was also published against the 4.x API.
+transformers>=4.40.0,<5
 soundfile>=0.12.0
 soxr>=0.3.7
