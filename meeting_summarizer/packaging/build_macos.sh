@@ -77,6 +77,12 @@ trap 'rm -rf "$STAGING"' EXIT
 ditto "$APP_PATH" "$STAGING/MeetingSummarizer.app"
 ln -s /Applications "$STAGING/Applications"
 
+# Ship the user guide inside the dmg so it travels with the app rather than
+# having to be sent separately.
+if [ -f "$SRC_DIR/HUONG_DAN_SU_DUNG.txt" ]; then
+  cp "$SRC_DIR/HUONG_DAN_SU_DUNG.txt" "$STAGING/"
+fi
+
 rm -f "$DMG_PATH"
 hdiutil create \
   -volname "Meeting Summarizer" \
