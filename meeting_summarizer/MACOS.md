@@ -143,7 +143,10 @@ trong CI từng bắt được ở PhoWhisper.
 
 Đánh đổi: **ChunkFormer không xuất dấu câu**, đầu ra là chữ thường liền mạch.
 [summarizer.py](summarizer.py) đã dặn Gemini tự khôi phục câu chữ khi viết biên
-bản. Ai cần transcript thô có dấu câu thì chọn PhoWhisper trong ⚙ (sẽ tải về).
+bản.
+
+PhoWhisper đã được **gỡ bỏ hoàn toàn** — cùng với `transformers`, thứ chiếm vài
+trăm MB kiến trúc model không dùng đến trong bundle.
 
 Giấy phép trọng số ChunkFormer là **cc-by-nc-4.0 — cấm dùng thương mại**.
 
@@ -155,10 +158,6 @@ repo lúc build vào `models/khanhld__chunkformer-ctc-large-vie`, spec đưa th�
 
 ```bash
 BUNDLE_ASR_MODEL=khanhld/chunkformer-rnnt-large-vie bash packaging/build_macos.sh
-
-# Quay lại đóng gói PhoWhisper thay vì ChunkFormer:
-BUNDLE_ENGINE=phowhisper BUNDLE_ASR_MODEL=vinai/PhoWhisper-small \
-    bash packaging/build_macos.sh
 ```
 
 Lưu ý:

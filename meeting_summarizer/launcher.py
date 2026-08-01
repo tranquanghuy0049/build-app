@@ -88,7 +88,7 @@ def _selftest():
     """Import every heavyweight dependency and report versions.
 
     Exists because the bundle is built on CI by someone with no Mac to test on:
-    a missing torch dylib or an uncollected transformers data file shows up here
+    a missing torch dylib or an uncollected chunkformer data file shows up here
     instead of as a silent failure on a user's machine.
     """
     failures = []
@@ -108,12 +108,11 @@ def _selftest():
         import torch
         return f"{torch.__version__} (mps={torch.backends.mps.is_available()})"
 
-    def _transformers():
-        import transformers
-        # Touch the whisper classes specifically; the pipeline resolves them by
-        # name at runtime, which is exactly what PyInstaller cannot see.
-        from transformers import WhisperForConditionalGeneration, WhisperProcessor  # noqa: F401
-        return transformers.__version__
+    def _chunkformer():
+        import chunkformer
+        # Touch the class the app actually constructs, not just the package.
+        from chunkformer import ChunkFormerModel  # noqa: F401
+        return getattr(chunkformer, "__version__", "ok")
 
     def _templates():
         from app_paths import resource_dir
@@ -137,17 +136,13 @@ def _selftest():
         return f"{model_id} ({size / (1024 * 1024):.0f} MB)"
 
     check("torch", _torch)
-    check("transformers", _transformers)
-    check("tokenizers", lambda: __import__("tokenizers").__version__)
-    check("soundfile", lambda: __import__("soundfile").__version__)
-    check("soxr", lambda: __import__("soxr").__version__)
+    check("chunkformer", _chunkformer)
     check("numpy", lambda: __import__("numpy").__version__)
     check("fastapi", lambda: __import__("fastapi").__version__)
     check("uvicorn", lambda: __import__("uvicorn").__version__)
     check("openai", lambda: __import__("openai").__version__)
     check("web app", lambda: __import__("web").app.title)
     check("settings", lambda: f"{len(__import__('settings').FIELDS)} fields")
-    check("chunkformer", lambda: __import__("chunkformer", fromlist=["ChunkFormerModel"]).__name__)
     check("google.genai", lambda: __import__("google.genai", fromlist=["Client"]).__name__)
     check("templates", _templates)
     check("bundled model", _bundled_model)
@@ -162,10 +157,7 @@ def _selftest():
 def _configured_model():
     """Repo id of the local speech model the current settings would use."""
     import settings
-    provider = settings.get("WHISPER_PROVIDER")
-    if provider == "chunkformer":
-        return settings.get("CHUNKFORMER_MODEL")
-    return settings.get("PHOWHISPER_MODEL")
+    return settings.get("CHUNKFORMER_MODEL")
 
 
 def _selftest_transcribe():
@@ -213,9 +205,8 @@ def _selftest_transcribe():
 
     from transcriber import Transcriber
 
-    mode = "chunkformer" if provider == "chunkformer" else "local"
     started = time.time()
-    transcriber = Transcriber(None, language="vi", model=model_id, mode=mode)
+    transcriber = Transcriber(None, language="vi", model=model_id, mode="chunkformer")
     text = transcriber.transcribe_file(wav)
     elapsed = time.time() - started
 

@@ -41,12 +41,9 @@ hiddenimports = [
 # Packages whose contents are resolved dynamically at runtime and so are invisible
 # to PyInstaller's import graph.
 for pkg in (
-    "transformers",
-    "tokenizers",
     "safetensors",
     "huggingface_hub",
     "soundfile",
-    "soxr",
     # Gemini SDK: writes the meeting minutes and runs topic tracking.
     "google.genai",
 ):
@@ -55,9 +52,14 @@ for pkg in (
     binaries += pkg_binaries
     hiddenimports += pkg_hidden
 
-# The default speech engine, plus whatever it pulls in. torchaudio is its likely
-# audio backend; both are optional so a missing one is not fatal to the build,
-# only to that engine at runtime.
+# The speech engine, plus whatever it pulls in. torchaudio is its likely audio
+# backend. Optional so a missing one fails the runtime selftest rather than the
+# whole build, which makes the cause obvious in CI.
+#
+# transformers is deliberately absent. Collecting it dragged in several hundred
+# megabytes of unused model architectures, and nothing needs it now that the
+# Whisper engine is gone. If chunkformer imports it, PyInstaller's own hook
+# collects the parts actually reached.
 for pkg in ("chunkformer", "torchaudio"):
     try:
         pkg_datas, pkg_binaries, pkg_hidden = collect_all(pkg)

@@ -20,7 +20,6 @@ FIELDS = {
     "GEMINI_MODEL": False,
     "WHISPER_PROVIDER": False,
     "CHUNKFORMER_MODEL": False,
-    "PHOWHISPER_MODEL": False,
     "LOCAL_ASR_DEVICE": False,
 }
 
@@ -30,22 +29,15 @@ DEFAULTS = {
     # works with no transcription API key and no download.
     "WHISPER_PROVIDER": "chunkformer",
     "CHUNKFORMER_MODEL": "khanhld/chunkformer-ctc-large-vie",
-    "PHOWHISPER_MODEL": "vinai/PhoWhisper-small",
     "LOCAL_ASR_DEVICE": "auto",
 }
 
 CHOICES = {
-    "WHISPER_PROVIDER": ("chunkformer", "phowhisper", "openai", "groq"),
+    "WHISPER_PROVIDER": ("chunkformer", "openai", "groq"),
     "LOCAL_ASR_DEVICE": ("auto", "mps", "cuda", "cpu"),
     "CHUNKFORMER_MODEL": (
         "khanhld/chunkformer-ctc-large-vie",
         "khanhld/chunkformer-rnnt-large-vie",
-    ),
-    "PHOWHISPER_MODEL": (
-        "vinai/PhoWhisper-tiny",
-        "vinai/PhoWhisper-base",
-        "vinai/PhoWhisper-small",
-        "vinai/PhoWhisper-medium",
     ),
     # Only Flash tiers remain on Gemini's free plan; Pro was removed from it in
     # April 2026.
@@ -75,13 +67,10 @@ _COMMENTS = {
     "GROQ_API_KEY": "# Only for WHISPER_PROVIDER=groq. Free: https://console.groq.com",
     "HF_TOKEN": "# Optional. Only needed for gated HuggingFace models.",
     "GEMINI_MODEL": "# gemini-2.5-flash | gemini-2.5-flash-lite (both on the free tier)",
-    "WHISPER_PROVIDER": "# chunkformer (offline, bundled, no key) | phowhisper | openai | groq",
+    "WHISPER_PROVIDER": "# chunkformer (offline, bundled, no key) | openai | groq",
     "CHUNKFORMER_MODEL": "# ctc is faster; rnnt may read more naturally. Only the\n"
                          "# bundled one works offline.",
-    "PHOWHISPER_MODEL": "# Only used when WHISPER_PROVIDER=phowhisper. Downloads on\n"
-                        "# first use since ChunkFormer is what ships in the app.",
-    "LOCAL_ASR_DEVICE": "# auto picks Metal (mps) on Apple Silicon. Applies to both\n"
-                        "# ChunkFormer and PhoWhisper.",
+    "LOCAL_ASR_DEVICE": "# auto picks Metal (mps) on Apple Silicon.",
 }
 
 
@@ -104,6 +93,13 @@ def get(name):
     value = os.getenv(name, "")
     if value in PLACEHOLDERS:
         return DEFAULTS.get(name, "")
+    # A config written by an older version can name an option that no longer
+    # exists. Falling through with it produces nonsense errors far from here —
+    # a stale WHISPER_PROVIDER=phowhisper used to surface as "missing Groq key".
+    if name in CHOICES and value not in CHOICES[name]:
+        fallback = DEFAULTS.get(name, "")
+        print(f"  settings: {name}={value!r} is no longer valid, using {fallback!r}")
+        return fallback
     return value
 
 

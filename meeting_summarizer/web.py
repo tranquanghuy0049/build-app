@@ -59,8 +59,6 @@ def get_whisper_client(provider: str = None):
     provider = provider or settings.get("WHISPER_PROVIDER")
     if provider == "chunkformer":
         return None, settings.get("CHUNKFORMER_MODEL")
-    if provider == "phowhisper":
-        return None, settings.get("PHOWHISPER_MODEL")
     if provider == "openai":
         return get_openai_client(), "whisper-1"
     if not settings.is_set("GROQ_API_KEY"):
@@ -69,13 +67,8 @@ def get_whisper_client(provider: str = None):
     return client, "whisper-large-v3"
 
 def transcriber_mode():
-    """Which engine Transcriber should use: a local model or a hosted API."""
-    provider = settings.get("WHISPER_PROVIDER")
-    if provider == "chunkformer":
-        return "chunkformer"
-    if provider == "phowhisper":
-        return "local"
-    return "api"
+    """Which engine Transcriber should use: the bundled model or a hosted API."""
+    return "chunkformer" if settings.get("WHISPER_PROVIDER") == "chunkformer" else "api"
 
 
 def _explain_summary_error(exc):
@@ -285,6 +278,14 @@ async def websocket_endpoint(websocket: WebSocket):
         await websocket.close()
         return
 
+    # One transcriber for the whole session. It caches the loaded model, and a
+    # fresh instance per chunk reloaded hundreds of megabytes of weights every
+    # flush — enough to fall behind a live meeting.
+    transcriber = Transcriber(
+        whisper_client, language=language, model=whisper_model,
+        mode=transcriber_mode(),
+    )
+
     try:
         while True:
             msg = await websocket.receive()
@@ -296,6 +297,8 @@ async def websocket_endpoint(websocket: WebSocket):
                     language = settings.get("language", "vi")
                     meeting_title = settings.get("title", "")
                     meeting_goals = settings.get("goals", "")
+                    # The transcriber was built before this message arrived.
+                    transcriber.language = language
                     settings_received = True
                     continue
                 if text_data == "DONE":
@@ -320,12 +323,9 @@ async def websocket_endpoint(websocket: WebSocket):
                             audio_path = os.path.join(tmp, "chunk.wav")
                             _save_wav(audio_path, trimmed)
                             try:
-                                mode = transcriber_mode()
-                                transcriber = Transcriber(
-                                    whisper_client, language=language,
-                                    prompt=prev_tail or None, model=whisper_model,
-                                    mode=mode,
-                                )
+                                # Only the rolling context changes between
+                                # chunks; the loaded model is reused.
+                                transcriber.prompt = prev_tail or None
                                 text = transcriber.transcribe_file(audio_path)
                                 if text:
                                     text = _trim_overlap(text, prev_tail)
@@ -371,12 +371,7 @@ async def websocket_endpoint(websocket: WebSocket):
                 audio_path = os.path.join(tmp, "final.wav")
                 _save_wav(audio_path, trimmed)
                 try:
-                    mode = transcriber_mode()
-                    transcriber = Transcriber(
-                        whisper_client, language=language,
-                        prompt=prev_tail or None, model=whisper_model,
-                        mode=mode,
-                    )
+                    transcriber.prompt = prev_tail or None
                     text = transcriber.transcribe_file(audio_path)
                     if text:
                         text = _trim_overlap(text, prev_tail)

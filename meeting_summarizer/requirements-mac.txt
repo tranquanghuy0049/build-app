@@ -3,8 +3,10 @@
 # Differences from requirements.txt:
 #   - sounddevice / colorama dropped: only the CLI (main.py) used them, and the
 #     macOS build ships the web UI only. Audio is captured by the browser.
-#   - librosa dropped in favour of soxr: librosa drags in numba + llvmlite, which
-#     are painful under PyInstaller and only ever did one resample call.
+#   - librosa / soxr dropped: they existed to resample for the Whisper pipeline,
+#     which is gone. ChunkFormer reads the audio file itself.
+#   - transformers dropped along with the PhoWhisper engine. Collecting it cost
+#     several hundred megabytes of model architectures the app never used.
 #   - jinja2 dropped: the app serves templates/index.html directly.
 #
 # torch is NOT pinned here because the correct pin is architecture-dependent —
@@ -12,25 +14,26 @@
 # after 2.2.2, so Intel Macs are stuck on that release.
 
 numpy>=1.24.0
-# Writes the meeting minutes and runs topic tracking.
-google-genai>=1.0.0
-# Still needed for the optional OpenAI/Groq transcription providers.
-openai>=1.0.0
-python-dotenv>=1.0.0
-fastapi>=0.110.0
-uvicorn[standard]>=0.27.0
-python-multipart>=0.0.6
-# Default speech engine. Conformer/CTC: a single forward pass instead of
+
+# Speech to text, running locally. Conformer/CTC: one forward pass instead of
 # Whisper's token-by-token decoding, so it is markedly faster and cannot
 # hallucinate words out of silence.
 # NOTE: unpinned for now. Pin to whatever the first green build installs — an
 # unpinned major version is exactly what broke the transformers step earlier.
 chunkformer
 
-# Still needed for the PhoWhisper fallback engine.
-# Capped below 5.0: transformers 5.x changed what Processor.save_pretrained
-# writes (no preprocessor_config.json), which breaks staging PhoWhisper for
-# bundling. PhoWhisper was also published against the 4.x API.
-transformers>=4.40.0,<5
+# Writes the meeting minutes and runs topic tracking.
+google-genai>=1.0.0
+# Still needed for the optional OpenAI/Groq transcription providers.
+openai>=1.0.0
+
+python-dotenv>=1.0.0
+fastapi>=0.110.0
+uvicorn[standard]>=0.27.0
+python-multipart>=0.0.6
+
+# Audio file IO. Kept because chunkformer's loader is likely to reach for it.
 soundfile>=0.12.0
-soxr>=0.3.7
+
+# Fetches the model at build time (packaging/fetch_model.py).
+huggingface_hub
