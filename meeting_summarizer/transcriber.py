@@ -22,7 +22,11 @@ class Transcriber:
         """Prefer Apple's Metal backend on Apple Silicon, then CUDA, then CPU."""
         import torch
 
-        override = os.getenv("PHOWHISPER_DEVICE", "auto").lower()
+        # PHOWHISPER_DEVICE is the older name, kept so configs written before
+        # ChunkFormer existed keep working.
+        override = (os.getenv("LOCAL_ASR_DEVICE")
+                    or os.getenv("PHOWHISPER_DEVICE")
+                    or "auto").lower()
         if override in ("cpu", "mps", "cuda"):
             return override
         mps = getattr(torch.backends, "mps", None)
@@ -97,6 +101,8 @@ class Transcriber:
         if not filepath:
             return ""
 
+        if self.mode == "chunkformer":
+            return self._transcribe_chunkformer(filepath)
         if self.mode == "local":
             return self._transcribe_local(filepath)
 
@@ -119,6 +125,87 @@ class Transcriber:
 
             except Exception as e:
                 print(f"  Transcription attempt {attempt + 1} failed: {e}")
+                if attempt < 2:
+                    time.sleep(2)
+        return ""
+
+    # ------------------------------------------------------------ ChunkFormer
+    # A Conformer/CTC model rather than an encoder-decoder one: it emits the
+    # whole transcript in a single pass instead of token by token, and cannot
+    # hallucinate text out of silence the way Whisper does.
+
+    def _get_chunkformer(self):
+        if self._pipe is not None:
+            return self._pipe
+
+        try:
+            from app_paths import hf_cache_dir
+            os.environ.setdefault("HF_HOME", hf_cache_dir())
+        except Exception:
+            pass
+        os.environ.setdefault("PYTORCH_ENABLE_MPS_FALLBACK", "1")
+
+        from chunkformer import ChunkFormerModel
+
+        source = self._resolve_model_source()
+        device = "cpu" if self._force_cpu else self._select_device()
+
+        def build(dev):
+            print(f"  Loading ChunkFormer {self.model} on device={dev}")
+            return ChunkFormerModel.from_pretrained(source).to(dev)
+
+        try:
+            self._pipe = build(device)
+        except Exception as e:
+            if device == "cpu":
+                raise
+            print(f"  {device} failed ({type(e).__name__}: {e}); retrying on CPU")
+            self._force_cpu = True
+            self._pipe = build("cpu")
+        return self._pipe
+
+    @staticmethod
+    def _flatten_chunkformer_output(out):
+        """endless_decode's return shape varies with version and with
+        return_timestamps, so accept a string, a dict, or a list of segments
+        rather than assuming one of them."""
+        if out is None:
+            return ""
+        if isinstance(out, str):
+            return out.strip()
+        if isinstance(out, dict):
+            return str(out.get("text") or out.get("transcript") or "").strip()
+        if isinstance(out, (list, tuple)):
+            parts = []
+            for item in out:
+                if isinstance(item, str):
+                    parts.append(item)
+                elif isinstance(item, dict):
+                    parts.append(str(item.get("text") or item.get("transcript") or ""))
+            return " ".join(p.strip() for p in parts if p and p.strip()).strip()
+        return str(out).strip()
+
+    def _transcribe_chunkformer(self, filepath: str) -> str:
+        for attempt in range(3):
+            try:
+                model = self._get_chunkformer()
+                out = model.endless_decode(
+                    audio_path=filepath,
+                    chunk_size=64,
+                    left_context_size=128,
+                    right_context_size=128,
+                    # Caps how much audio is batched at once. Our clips are
+                    # seconds long, so this only matters for uploaded files.
+                    total_batch_duration=1800,
+                    return_timestamps=False,
+                )
+                return self._flatten_chunkformer_output(out)
+            except Exception as e:
+                print(f"  ChunkFormer attempt {attempt + 1} failed: {e}")
+                if not self._force_cpu:
+                    print("  Rebuilding ChunkFormer on CPU for the retry")
+                    self._force_cpu = True
+                    self._pipe = None
                 if attempt < 2:
                     time.sleep(2)
         return ""

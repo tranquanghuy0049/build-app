@@ -19,9 +19,9 @@ LOG="$SUPPORT_DIR/launcher.log"
 mkdir -p "$SUPPORT_DIR"
 cat > "$SUPPORT_DIR/.env" <<'ENV'
 GEMINI_API_KEY=AIza-smoketest-not-a-real-key
-WHISPER_PROVIDER=phowhisper
-PHOWHISPER_MODEL=vinai/PhoWhisper-small
-PHOWHISPER_DEVICE=auto
+WHISPER_PROVIDER=chunkformer
+CHUNKFORMER_MODEL=khanhld/chunkformer-ctc-large-vie
+LOCAL_ASR_DEVICE=auto
 ENV
 # Deliberately "auto", the shipped default. The CI runner reports Metal as
 # available but cannot allocate on it, which is precisely the condition the

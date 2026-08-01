@@ -333,7 +333,8 @@
     <div class="field">
       <label>Nhận dạng giọng nói bằng</label>
       <select id="set_WHISPER_PROVIDER" onchange="onProviderChange()">
-        <option value="phowhisper">PhoWhisper — offline, có sẵn trong app</option>
+        <option value="chunkformer">ChunkFormer — offline, có sẵn trong app</option>
+        <option value="phowhisper">PhoWhisper — offline, phải tải về</option>
         <option value="openai">OpenAI Whisper — cần OpenAI key</option>
         <option value="groq">Groq Whisper — nhanh, có gói miễn phí</option>
       </select>
@@ -358,24 +359,34 @@
       </div>
     </div>
 
+    <div class="field" id="chunkformerOpts" style="display:none">
+      <label>Model ChunkFormer</label>
+      <select id="set_CHUNKFORMER_MODEL">
+        <option value="khanhld/chunkformer-ctc-large-vie">CTC — có sẵn trong app, nhanh nhất</option>
+        <option value="khanhld/chunkformer-rnnt-large-vie">RNN-T — phải tải về</option>
+      </select>
+      <div class="hint">Chỉ bản <strong>CTC</strong> đi kèm sẵn trong app. Bản này không thêm dấu câu — phần biên bản sẽ tự khôi phục câu chữ.</div>
+    </div>
+
     <div id="phowhisperOpts" style="display:none">
       <div class="field">
         <label>Model PhoWhisper</label>
         <select id="set_PHOWHISPER_MODEL">
           <option value="vinai/PhoWhisper-tiny">tiny — nhanh nhất, kém chính xác nhất</option>
           <option value="vinai/PhoWhisper-base">base</option>
-          <option value="vinai/PhoWhisper-small">small — có sẵn trong app</option>
+          <option value="vinai/PhoWhisper-small">small — cân bằng</option>
           <option value="vinai/PhoWhisper-medium">medium — chính xác nhất, chậm</option>
         </select>
-        <div class="hint">Chỉ bản <strong>small</strong> đi kèm sẵn trong app. Chọn bản khác sẽ phải tải về (cần mạng một lần).</div>
+        <div class="hint">PhoWhisper <strong>không</strong> đi kèm trong app, sẽ phải tải về (cần mạng một lần). Bù lại nó có dấu câu sẵn.</div>
       </div>
-      <div class="field">
-        <label>Thiết bị xử lý</label>
-        <select id="set_PHOWHISPER_DEVICE">
-          <option value="auto">Tự động — dùng Metal (GPU) nếu có</option>
-          <option value="cpu">CPU — chậm hơn nhưng ổn định nhất</option>
-        </select>
-      </div>
+    </div>
+
+    <div class="field">
+      <label>Thiết bị xử lý</label>
+      <select id="set_LOCAL_ASR_DEVICE">
+        <option value="auto">Tự động — dùng Metal (GPU) nếu có</option>
+        <option value="cpu">CPU — chậm hơn nhưng ổn định nhất</option>
+      </select>
     </div>
 
     <div class="modal-msg" id="settingsMsg"></div>
@@ -439,7 +450,8 @@
   const saveSettingsBtn = document.getElementById('saveSettingsBtn');
 
   const SECRET_FIELDS = ['GEMINI_API_KEY', 'OPENAI_API_KEY', 'GROQ_API_KEY'];
-  const PLAIN_FIELDS = ['GEMINI_MODEL', 'WHISPER_PROVIDER', 'PHOWHISPER_MODEL', 'PHOWHISPER_DEVICE'];
+  const PLAIN_FIELDS = ['GEMINI_MODEL', 'WHISPER_PROVIDER', 'CHUNKFORMER_MODEL',
+                        'PHOWHISPER_MODEL', 'LOCAL_ASR_DEVICE'];
   let settingsState = null;
 
   function applyReadiness(state) {
@@ -468,11 +480,13 @@
     const p = document.getElementById('set_WHISPER_PROVIDER').value;
     document.getElementById('field_OPENAI').style.display = p === 'openai' ? '' : 'none';
     document.getElementById('field_GROQ').style.display = p === 'groq' ? '' : 'none';
+    document.getElementById('chunkformerOpts').style.display = p === 'chunkformer' ? '' : 'none';
     document.getElementById('phowhisperOpts').style.display = p === 'phowhisper' ? '' : 'none';
     const hints = {
       openai: 'Chính xác cao, tính phí theo thời lượng ghi âm. Cần thêm khoá OpenAI.',
       groq: 'Rất nhanh và có gói miễn phí, cần khoá Groq riêng.',
-      phowhisper: 'Đã có sẵn trong app, không cần mạng và không tốn phí. Âm thanh không rời khỏi máy này.'
+      chunkformer: 'Đã có sẵn trong app, không cần mạng và không tốn phí. Nhanh và chính xác nhất cho tiếng Việt. Âm thanh không rời khỏi máy này.',
+      phowhisper: 'Chạy trên máy này nhưng phải tải model về lần đầu. Chậm hơn ChunkFormer, bù lại có sẵn dấu câu.'
     };
     document.getElementById('providerHint').textContent = hints[p] || '';
   }

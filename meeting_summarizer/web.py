@@ -57,6 +57,8 @@ def get_whisper_client(provider: str = None):
     # Read on every call: the user can switch providers from Settings without
     # restarting the app.
     provider = provider or settings.get("WHISPER_PROVIDER")
+    if provider == "chunkformer":
+        return None, settings.get("CHUNKFORMER_MODEL")
     if provider == "phowhisper":
         return None, settings.get("PHOWHISPER_MODEL")
     if provider == "openai":
@@ -67,7 +69,13 @@ def get_whisper_client(provider: str = None):
     return client, "whisper-large-v3"
 
 def transcriber_mode():
-    return "local" if settings.get("WHISPER_PROVIDER") == "phowhisper" else "api"
+    """Which engine Transcriber should use: a local model or a hosted API."""
+    provider = settings.get("WHISPER_PROVIDER")
+    if provider == "chunkformer":
+        return "chunkformer"
+    if provider == "phowhisper":
+        return "local"
+    return "api"
 
 
 def _explain_summary_error(exc):

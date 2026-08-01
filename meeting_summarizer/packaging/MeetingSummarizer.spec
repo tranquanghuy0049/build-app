@@ -55,6 +55,19 @@ for pkg in (
     binaries += pkg_binaries
     hiddenimports += pkg_hidden
 
+# The default speech engine, plus whatever it pulls in. torchaudio is its likely
+# audio backend; both are optional so a missing one is not fatal to the build,
+# only to that engine at runtime.
+for pkg in ("chunkformer", "torchaudio"):
+    try:
+        pkg_datas, pkg_binaries, pkg_hidden = collect_all(pkg)
+        datas += pkg_datas
+        binaries += pkg_binaries
+        hiddenimports += pkg_hidden
+        print(f"spec: collected {pkg}")
+    except Exception as e:
+        print(f"spec: WARNING - could not collect {pkg}: {e}")
+
 # torch is handled by the bundled pyinstaller-hooks-contrib hook; collect_all on
 # it roughly triples build time for no gain. Its dylibs are re-collected here
 # only as a safety net.
@@ -88,6 +101,8 @@ for dist in (
     "fsspec",
     "openai",
     "google-genai",
+    "chunkformer",
+    "torchaudio",
 ):
     try:
         datas += copy_metadata(dist)
@@ -100,9 +115,7 @@ excludes = [
     "flax",
     "jax",
     "torchvision",
-    "torchaudio",
     "matplotlib",
-    "scipy",
     "numba",
     "llvmlite",
     "librosa",

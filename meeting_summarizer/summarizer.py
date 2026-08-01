@@ -4,6 +4,11 @@ SUMMARY_SYSTEM = "Bạn là chuyên gia viết biên bản cuộc họp chi ti�
 
 SUMMARY_PROMPT = """Bạn là một chuyên gia viết biên bản cuộc họp. Nhiệm vụ của bạn là viết LẠI toàn bộ nội dung cuộc họp một cách CHI TIẾT, ĐẦY ĐỦ dựa trên transcript dưới đây.
 
+LƯU Ý VỀ TRANSCRIPT: transcript được tạo tự động từ giọng nói nên có thể
+KHÔNG CÓ DẤU CÂU, không viết hoa, và có chỗ nhận dạng sai. Hãy tự suy ra
+ranh giới câu và ý, tự sửa những từ rõ ràng bị nhận dạng nhầm dựa vào ngữ
+cảnh, rồi viết biên bản bằng câu văn hoàn chỉnh có dấu câu đầy đủ.
+
 YÊU CẦU BẮT BUỘC:
 - Viết HOÀN TOÀN bằng tiếng Việt
 - GHI LẠI CHI TIẾT toàn bộ nội dung cuộc họp, KHÔNG tóm tắt ngắn gọn

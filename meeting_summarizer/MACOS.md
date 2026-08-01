@@ -122,31 +122,50 @@ Cửa sổ trình duyệt đóng lại không làm server dừng. Chuột phải
 
 ---
 
-## 6. PhoWhisper (transcribe offline, đóng gói sẵn)
+## 6. ChunkFormer (transcribe offline, đóng gói sẵn)
 
-Mặc định là `WHISPER_PROVIDER=phowhisper`. Trọng số `PhoWhisper-small` **nằm sẵn
-trong app**, cài xong là nhận dạng được ngay, không tải gì, không cần mạng.
+Mặc định là `WHISPER_PROVIDER=chunkformer`, model
+`khanhld/chunkformer-ctc-large-vie` **nằm sẵn trong app** — cài xong là nhận dạng
+được ngay, không tải gì, không cần mạng.
 
-Cách đóng gói: [packaging/fetch_model.py](packaging/fetch_model.py) tải model lúc
-build và lưu vào `models/vinai__PhoWhisper-small`, spec đưa thư mục đó vào
-bundle, rồi [transcriber.py](transcriber.py) ưu tiên đường dẫn cục bộ đó.
+Vì sao chọn nó thay PhoWhisper:
 
-Trọng số lưu ở **float16** để `.dmg` bớt một nửa dung lượng, nhưng suy luận vẫn
-chạy ở float32 — float16 trên MPS gây NaN với Whisper ở nhiều bản torch.
+| | ChunkFormer | PhoWhisper-large |
+|---|---|---|
+| Tham số | 110M | 1.55B |
+| WER trung bình | **8.31** | 8.85 |
+| Kiến trúc | Conformer/CTC | encoder-decoder |
+
+Ba lợi thế thực tế: ít hơn nửa số tham số so với PhoWhisper-small mà chính xác
+hơn; CTC chạy một lượt thay vì sinh từng token nên nhanh hơn nhiều; và **không
+bịa chữ khi im lặng** — bệnh cố hữu của model autoregressive mà chính bài verify
+trong CI từng bắt được ở PhoWhisper.
+
+Đánh đổi: **ChunkFormer không xuất dấu câu**, đầu ra là chữ thường liền mạch.
+[summarizer.py](summarizer.py) đã dặn Gemini tự khôi phục câu chữ khi viết biên
+bản. Ai cần transcript thô có dấu câu thì chọn PhoWhisper trong ⚙ (sẽ tải về).
+
+Giấy phép trọng số ChunkFormer là **cc-by-nc-4.0 — cấm dùng thương mại**.
+
+Cách đóng gói: [packaging/fetch_model.py](packaging/fetch_model.py) tải nguyên
+repo lúc build vào `models/khanhld__chunkformer-ctc-large-vie`, spec đưa thư mục
+đó vào bundle, rồi [transcriber.py](transcriber.py) ưu tiên đường dẫn cục bộ.
 
 Đổi model đóng gói khi build:
 
 ```bash
-PHOWHISPER_BUNDLE_MODEL=vinai/PhoWhisper-base bash packaging/build_macos.sh
-PHOWHISPER_BUNDLE_FP16=0   # giữ nguyên độ chính xác đầy đủ, file to gấp đôi
+BUNDLE_ASR_MODEL=khanhld/chunkformer-rnnt-large-vie bash packaging/build_macos.sh
+
+# Quay lại đóng gói PhoWhisper thay vì ChunkFormer:
+BUNDLE_ENGINE=phowhisper BUNDLE_ASR_MODEL=vinai/PhoWhisper-small \
+    bash packaging/build_macos.sh
 ```
 
 Lưu ý:
 
-- Trong ⚙ vẫn chọn được `tiny`/`base`/`medium`, nhưng **chỉ bản được đóng gói là
-  offline**. Chọn bản khác thì app sẽ tải về (cần mạng một lần).
-- Trên Apple Silicon model chạy bằng **Metal (MPS)**. Gặp lỗi lạ thì đổi
-  `PHOWHISPER_DEVICE=cpu` trong ⚙ — chậm hơn nhưng ổn định nhất.
+- Trong ⚙ chọn được model khác, nhưng **chỉ bản được đóng gói là offline**.
+- Trên Apple Silicon chạy bằng **Metal (MPS)**, tự chuyển sang CPU nếu Metal lỗi.
+  Ép cứng bằng `LOCAL_ASR_DEVICE=cpu` (tên cũ `PHOWHISPER_DEVICE` vẫn đọc được).
 - **Phần viết biên bản gọi Gemini API** — chỉ khâu nhận dạng là offline. Âm thanh
   không bao giờ rời khỏi máy; chỉ bản chữ mới gửi lên Gemini.
 

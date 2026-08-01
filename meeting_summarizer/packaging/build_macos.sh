@@ -51,7 +51,7 @@ PY
 # ---------------------------------------------------------------------- model
 # Stage the speech model into models/ so PyInstaller can bundle it. This is what
 # makes the shipped app work offline with no first-use download.
-echo "==> Staging PhoWhisper weights (${PHOWHISPER_BUNDLE_MODEL:-vinai/PhoWhisper-small})"
+echo "==> Staging speech model (engine=${BUNDLE_ENGINE:-chunkformer})"
 python3 packaging/fetch_model.py
 
 # --------------------------------------------------------------------- bundle

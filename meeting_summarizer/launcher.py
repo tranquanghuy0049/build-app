@@ -126,7 +126,7 @@ def _selftest():
         import settings
         from app_paths import bundled_model_dir
         settings.load()
-        model_id = settings.get("PHOWHISPER_MODEL")
+        model_id = _configured_model()
         path = bundled_model_dir(model_id)
         if not path:
             raise FileNotFoundError(f"{model_id} not bundled")
@@ -147,6 +147,7 @@ def _selftest():
     check("openai", lambda: __import__("openai").__version__)
     check("web app", lambda: __import__("web").app.title)
     check("settings", lambda: f"{len(__import__('settings').FIELDS)} fields")
+    check("chunkformer", lambda: __import__("chunkformer", fromlist=["ChunkFormerModel"]).__name__)
     check("google.genai", lambda: __import__("google.genai", fromlist=["Client"]).__name__)
     check("templates", _templates)
     check("bundled model", _bundled_model)
@@ -156,6 +157,15 @@ def _selftest():
         return 1
     print("\nSELFTEST OK")
     return 0
+
+
+def _configured_model():
+    """Repo id of the local speech model the current settings would use."""
+    import settings
+    provider = settings.get("WHISPER_PROVIDER")
+    if provider == "chunkformer":
+        return settings.get("CHUNKFORMER_MODEL")
+    return settings.get("PHOWHISPER_MODEL")
 
 
 def _selftest_transcribe():
@@ -173,7 +183,9 @@ def _selftest_transcribe():
     from app_paths import bundled_model_dir
 
     settings.load()
-    model_id = settings.get("PHOWHISPER_MODEL")
+    provider = settings.get("WHISPER_PROVIDER")
+    model_id = _configured_model()
+    print(f"  engine: {provider}")
 
     bundled = bundled_model_dir(model_id)
     if not bundled:
@@ -201,8 +213,9 @@ def _selftest_transcribe():
 
     from transcriber import Transcriber
 
+    mode = "chunkformer" if provider == "chunkformer" else "local"
     started = time.time()
-    transcriber = Transcriber(None, language="vi", model=model_id, mode="local")
+    transcriber = Transcriber(None, language="vi", model=model_id, mode=mode)
     text = transcriber.transcribe_file(wav)
     elapsed = time.time() - started
 

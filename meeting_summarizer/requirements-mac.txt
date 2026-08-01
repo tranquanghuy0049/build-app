@@ -20,6 +20,14 @@ python-dotenv>=1.0.0
 fastapi>=0.110.0
 uvicorn[standard]>=0.27.0
 python-multipart>=0.0.6
+# Default speech engine. Conformer/CTC: a single forward pass instead of
+# Whisper's token-by-token decoding, so it is markedly faster and cannot
+# hallucinate words out of silence.
+# NOTE: unpinned for now. Pin to whatever the first green build installs — an
+# unpinned major version is exactly what broke the transformers step earlier.
+chunkformer
+
+# Still needed for the PhoWhisper fallback engine.
 # Capped below 5.0: transformers 5.x changed what Processor.save_pretrained
 # writes (no preprocessor_config.json), which breaks staging PhoWhisper for
 # bundling. PhoWhisper was also published against the 4.x API.
