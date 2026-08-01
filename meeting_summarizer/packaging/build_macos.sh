@@ -84,10 +84,14 @@ if [ -f "$SRC_DIR/HUONG_DAN_SU_DUNG.txt" ]; then
 fi
 
 rm -f "$DMG_PATH"
+# ULMO (LZMA) rather than the usual UDZO (zlib): the payload is uncompressed
+# dylibs and model weights, so the better ratio takes a real bite out of the
+# download. Costs build time and needs macOS 10.15+, which our 11.0 minimum
+# already exceeds.
 hdiutil create \
   -volname "Meeting Summarizer" \
   -srcfolder "$STAGING" \
-  -ov -format UDZO \
+  -ov -format ULMO \
   "$DMG_PATH"
 
 echo

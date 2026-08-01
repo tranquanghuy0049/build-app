@@ -29,6 +29,11 @@ jobs:
     runs-on: ${{ matrix.runner }}
     timeout-minutes: 90
 
+    # Required by the release step: without it the default token is read-only
+    # and attaching the dmg fails with 403.
+    permissions:
+      contents: write
+
     steps:
       - uses: actions/checkout@v4
 
