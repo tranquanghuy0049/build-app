@@ -48,6 +48,29 @@ import torch, platform
 print(f"torch {torch.__version__} on {platform.machine()}, mps={torch.backends.mps.is_available()}")
 PY
 
+# ----------------------------------------------------------------------- icon
+# macOS wants .icns and nothing else — a .png handed to BUNDLE is ignored, which
+# is why the Dock showed the blank PyInstaller rocket while Windows had its
+# proper icon. Built from the same 1024px source make_icon.py draws for Windows,
+# so the two platforms cannot drift apart.
+echo "==> Generating app icon"
+python3 -m pip install --quiet pillow
+python3 packaging/make_icon.py
+
+ICONSET="$SRC_DIR/build/MeetingSummarizer.iconset"
+rm -rf "$ICONSET"
+mkdir -p "$ICONSET"
+for size in 16 32 128 256 512; do
+  sips -z $size $size "$SRC_DIR/static/icon.png" \
+    --out "$ICONSET/icon_${size}x${size}.png" >/dev/null
+  # Retina variant of each: macOS picks the @2x file on every display Apple has
+  # shipped for a decade, and its absence is what makes an icon look soft.
+  sips -z $((size * 2)) $((size * 2)) "$SRC_DIR/static/icon.png" \
+    --out "$ICONSET/icon_${size}x${size}@2x.png" >/dev/null
+done
+iconutil -c icns "$ICONSET" -o "$SCRIPT_DIR/icon.icns"
+echo "    icon.icns: $(du -h "$SCRIPT_DIR/icon.icns" | cut -f1)"
+
 # ---------------------------------------------------------------------- model
 # Stage the speech model into models/ so PyInstaller can bundle it. This is what
 # makes the shipped app work offline with no first-use download.

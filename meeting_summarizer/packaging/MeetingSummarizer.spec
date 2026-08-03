@@ -241,9 +241,13 @@ if IS_WINDOWS:
 
 pyz = PYZ(a.pure)
 
-# Optional: drop an .ico here and the Windows exe and installer pick it up.
-ICON_PATH = os.path.join(SPEC_DIR, "icon.ico")
-icon = ICON_PATH if (IS_WINDOWS and os.path.isfile(ICON_PATH)) else None
+# Both are generated at build time from the same drawing in make_icon.py — .ico
+# for the Windows exe, .icns for the macOS bundle, because each platform reads
+# only its own format. Absent means an unbranded build rather than a failed one.
+ICO_PATH = os.path.join(SPEC_DIR, "icon.ico")
+ICNS_PATH = os.path.join(SPEC_DIR, "icon.icns")
+icon = ICO_PATH if (IS_WINDOWS and os.path.isfile(ICO_PATH)) else None
+mac_icon = ICNS_PATH if (IS_MAC and os.path.isfile(ICNS_PATH)) else None
 
 exe = EXE(
     pyz,
@@ -281,7 +285,7 @@ if IS_MAC:
     app = BUNDLE(
         coll,
         name="MeetingSummarizer.app",
-        icon=None,
+        icon=mac_icon,
         bundle_identifier="com.tnt.meetingsummarizer",
         version=VERSION,
         info_plist={

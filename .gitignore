@@ -17,6 +17,11 @@ venv/
 build/
 dist/
 
+# Generated at build time by packaging/make_icon.py and build_macos.sh. The .ico
+# is committed because a Windows build can run without Pillow; the .icns is not,
+# because only the macOS runner can produce it.
+meeting_summarizer/packaging/icon.icns
+
 # Speech model weights staged at build time by packaging/fetch_model.py.
 # Hundreds of MB — fetched during CI, never committed.
 meeting_summarizer/models/
