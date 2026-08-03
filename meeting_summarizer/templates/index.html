@@ -1087,22 +1087,53 @@
   }
 
   async function startRecording() {
+    const AudioCtx = window.AudioContext || window.webkitAudioContext;
+    if (!AudioCtx || !navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+      showError('Trình duyệt này không ghi âm được. Mở lại bằng Chrome, Edge hoặc Safari bản mới.');
+      return;
+    }
+
+    // Created here, as the first thing the click does, and not down in the
+    // socket callback where it used to live. Safari starts an AudioContext
+    // suspended unless it is created inside a user gesture, and every await
+    // below ends that gesture — a suspended context never fires
+    // onaudioprocess, so the timer would run and the socket would stay open
+    // while not one sample was ever sent. Chrome hid the bug: it resumes on
+    // its own once the page has been clicked.
+    const ctx = new AudioCtx({ sampleRate: 16000 });
+    ctx.resume().catch(() => {});
+
     // Fail before touching the microphone rather than after the user has
     // already started talking.
     const state = await refreshSettings();
     if (state && state.ready && !state.ready.ok) {
+      ctx.close();
       openSettings();
       return;
     }
 
     try {
       stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+
+      // Granting the microphone counts as an interaction, so a context Safari
+      // refused to start a moment ago will usually start now.
+      if (ctx.state === 'suspended') {
+        try { await ctx.resume(); } catch (e) { /* reported just below */ }
+      }
+      if (ctx.state !== 'running') {
+        ctx.close();
+        stream.getTracks().forEach(t => t.stop());
+        stream = null;
+        showError('Trình duyệt chưa cho phép thu âm thanh (AudioContext: ' + ctx.state
+                  + '). Bấm "Bắt đầu ghi" thêm một lần nữa.');
+        return;
+      }
+
       ws = new WebSocket('ws://' + location.host + '/ws');
 
       ws.onopen = () => {
         ws.send(JSON.stringify({ language: 'vi', title: meetingTitle.value.trim(), goals: meetingGoals.value.trim() }));
-        const AudioCtx = window.AudioContext || window.webkitAudioContext;
-        audioContext = new AudioCtx({ sampleRate: 16000 });
+        audioContext = ctx;
         source = audioContext.createMediaStreamSource(stream);
         processor = audioContext.createScriptProcessor(8192, 1, 1);
         processor.onaudioprocess = (e) => {
@@ -1188,14 +1219,17 @@
 
       timerInterval = setInterval(() => { seconds++; timer.textContent = formatTime(seconds); }, 1000);
     } catch (err) {
+      try { ctx.close(); } catch (e) {}
       showMicError(err);
     }
   }
 
-  // The app grants itself the browser-level microphone permission, so anything
-  // that still fails here is the operating system or the hardware. Saying which
-  // one, and offering the screen that fixes it, is the difference between a
-  // solvable problem and a dead end.
+  // On Windows the app grants itself the browser-level microphone permission,
+  // so anything that still fails here is the operating system or the hardware.
+  // On macOS the page runs in the user's own browser, which asks for itself and
+  // then has to have been allowed in System Settings as well. Either way, saying
+  // which layer said no — and offering the screen that fixes it — is the
+  // difference between a solvable problem and a dead end.
   function showMicError(err) {
     const name = err && err.name;
     if (name === 'NotFoundError' || name === 'DevicesNotFoundError') {
