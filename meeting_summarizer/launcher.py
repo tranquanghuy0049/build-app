@@ -2,16 +2,17 @@
 
 Starts the FastAPI server on a free local port and puts a UI in front of it.
 
-On Windows that is a native window (pywebview) borrowing WebView2, the engine
-Windows already ships with Edge — so nothing like Chromium is bundled; what
-ships is a few hundred kilobytes of wrapper. macOS opens the default browser
-instead: pywebview's cocoa backend has the same unimplemented microphone
-permission handling that the Windows one needed working around, and none of
-that is verified on a Mac yet. The browser works, it is just visibly a web
-page — an address bar reading 127.0.0.1 and a tab that can be closed while the
-server keeps running.
+That is a native window (pywebview) on both, borrowing whichever engine the OS
+already has — WebView2 on Windows, WKWebView on macOS. Neither bundles a
+browser: what ships is a wrapper of a few hundred kilobytes. Both backends
+leave microphone permission unimplemented, so the app answers for itself in
+each case; the two mechanisms have nothing in common beyond the intent.
 
-The browser is also the fallback on a Windows machine with no usable WebView2.
+The browser remains the fallback, and is opened rather than a window whenever
+permission could not be arranged, the window failed to start, or
+MEETING_SUMMARIZER_BROWSER=1 asks for it. It works — it is just visibly a web
+page, with an address bar reading 127.0.0.1 and a tab that can be closed while
+the server keeps running.
 
 Audio capture still happens in the page (getUserMedia), so the bundle itself
 never touches CoreAudio or WASAPI.
@@ -224,6 +225,58 @@ def _allow_microphone(window, url):
     return False, state.get("err", "khong ro")
 
 
+# The macOS half of the same problem. WKWebView asks the application before it
+# lets a page reach the microphone and denies by default when nothing answers,
+# and pywebview's cocoa backend never implements that delegate method — exactly
+# the gap its Windows backend has, with a different fix.
+_MEDIA_SELECTOR_NAME = (
+    "webView_requestMediaCapturePermissionForOrigin_"
+    "initiatedByFrame_type_decisionHandler_"
+)
+
+
+def _install_macos_media_permission():
+    """Teach pywebview's WKWebView delegate to grant the microphone.
+
+    Added to the delegate class, not to one instance, and before any window
+    exists: whether this worked is then known *before* the user is looking at a
+    window that cannot record. main() falls back to the browser when it did
+    not, which is the path every shipped macOS build has used so far.
+
+    Returns (ok, detail).
+    """
+    try:
+        import objc
+        from webview.platforms.cocoa import BrowserView
+    except Exception as e:
+        return False, f"{type(e).__name__}: {e}"
+
+    delegate = BrowserView.BrowserDelegate
+    if hasattr(delegate, _MEDIA_SELECTOR_NAME):
+        return True, "pywebview đã tự xử lý"
+
+    # WKPermissionDecisionGrant. Written out rather than imported: it lives in a
+    # WebKit enum that PyObjC exposes under different names across versions, and
+    # an import error here would cost the window for the sake of a constant.
+    grant_decision = 1
+
+    def grant(self, webview, origin, frame, kind, decision_handler):
+        decision_handler(grant_decision)
+
+    try:
+        objc.classAddMethods(delegate, [objc.selector(
+            grant,
+            selector=(b"webView:requestMediaCapturePermissionForOrigin:"
+                      b"initiatedByFrame:type:decisionHandler:"),
+            # void; self, _cmd, webView, origin, frame, WKMediaCaptureType
+            # (NSInteger), and the completion block.
+            signature=b"v@:@@@q@?",
+        )])
+    except Exception as e:
+        return False, f"{type(e).__name__}: {e}"
+    return True, ""
+
+
 def _run_native_window(url):
     """Show the app in its own window. Returns when the user closes it."""
     import webview
@@ -247,6 +300,14 @@ def _run_native_window(url):
         width=width, height=height,
         min_size=(720, 540),
     )
+
+    # macOS has nothing to do here: its permission handler was installed on the
+    # delegate class before this function was ever called, and it applies to
+    # whatever window comes after. Windows has to reach into a live WebView2
+    # control, which does not exist until the window has started.
+    if sys.platform != "win32":
+        webview.start(window)
+        return
 
     # pywebview hands the window to this callback, so it takes an argument even
     # though the closure already has one.
@@ -325,6 +386,21 @@ def _selftest():
     check("google.genai", lambda: __import__("google.genai", fromlist=["Client"]).__name__)
     check("templates", _templates)
     check("bundled model", _bundled_model)
+
+    if sys.platform == "darwin":
+        # Worth a check of its own because it is the one thing CI can prove
+        # about the window: the runner has no microphone and nobody can answer
+        # a permission dialog there, but a PyObjC selector whose signature is
+        # wrong, or a cocoa backend PyInstaller failed to collect, fails right
+        # here — on a real Mac, inside the real bundle.
+        def _window():
+            import webview
+            ok, detail = _install_macos_media_permission()
+            if not ok:
+                raise RuntimeError(detail)
+            return f"pywebview {webview.__version__}, quyền micro cài được"
+
+        check("cửa sổ ứng dụng", _window)
 
     if failures:
         print(f"\nSELFTEST FAILED: {', '.join(failures)}")
@@ -484,28 +560,39 @@ def main():
         server.thread.join()
         return 0
 
-    # macOS opens the browser, as it always has. pywebview is not in
-    # requirements-mac.txt, so its cocoa backend is not inside the .app at all;
-    # calling _run_native_window there would only write an ImportError traceback
-    # to the log before landing in the same fallback below.
-    if sys.platform != "win32":
-        print("Mở giao diện bằng trình duyệt mặc định")
+    def _use_browser(why):
+        print(f"Mở giao diện bằng trình duyệt mặc định ({why})")
         webbrowser.open(url)
         server.thread.join()
         return 0
+
+    # An escape hatch that needs no rebuild: the browser is the path this app
+    # shipped on for months, so anyone whose window misbehaves has somewhere to
+    # go while the cause is being found.
+    if os.getenv("MEETING_SUMMARIZER_BROWSER") == "1":
+        return _use_browser("MEETING_SUMMARIZER_BROWSER=1")
+
+    if sys.platform == "darwin":
+        # Deliberately before the window is created rather than inside it. A
+        # window whose microphone is silently denied looks like a working app
+        # right up until the meeting comes back empty; the browser, which asks
+        # for permission itself, is strictly better than that.
+        ok, detail = _install_macos_media_permission()
+        print(f"microphone permission: {'granted' if ok else 'NOT granted'} {detail}".strip())
+        if not ok:
+            return _use_browser(f"không cấp được quyền micro cho cửa sổ: {detail}")
+    elif sys.platform != "win32":
+        return _use_browser(f"chưa hỗ trợ cửa sổ riêng trên {sys.platform}")
 
     try:
         _run_native_window(url)
         return 0
     except Exception as e:
-        # A machine without WebView2 should still get a working app rather than
-        # an error dialog, so fall back to the browser and say why in the log.
+        # A machine without WebView2, or a Mac whose WebKit refused to start,
+        # should still get a working app rather than an error dialog.
         import traceback
         traceback.print_exc()
-        print(f"Không mở được cửa sổ ứng dụng ({e}); dùng trình duyệt mặc định")
-        webbrowser.open(url)
-        server.thread.join()
-        return 0
+        return _use_browser(f"không mở được cửa sổ ứng dụng: {e}")
 
 
 if __name__ == "__main__":

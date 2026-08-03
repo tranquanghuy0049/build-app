@@ -32,6 +32,13 @@ fastapi>=0.110.0
 uvicorn[standard]>=0.27.0
 python-multipart>=0.0.6
 
+# Native window around the local server. On macOS this is WKWebView — the same
+# WebKit that Safari uses, already part of the OS — so it costs a wrapper and
+# the PyObjC bridge rather than a browser engine. pip pulls pyobjc-core and the
+# Cocoa/WebKit/Quartz/Security/UniformTypeIdentifiers frameworks along with it
+# through pywebview's own darwin markers, so none of those are listed here.
+pywebview>=6.0
+
 # Audio file IO. Kept because chunkformer's loader is likely to reach for it.
 soundfile>=0.12.0
 

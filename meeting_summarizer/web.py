@@ -694,6 +694,23 @@ async def open_mic_settings():
         raise HTTPException(status_code=500, detail=f"Không mở được cài đặt: {e}")
 
 
+@app.post("/api/open-in-browser")
+async def open_in_browser(request: Request):
+    """Reopen the running app in the user's default browser.
+
+    The way out when the native window will not record. The browser asks for
+    the microphone on its own terms and is the arrangement this app shipped on
+    for months, so it is a working app rather than a support conversation —
+    and the server is already up, so it is the same session, not a restart.
+    """
+    import webbrowser
+
+    url = str(request.base_url)
+    if not webbrowser.open(url):
+        raise HTTPException(status_code=500, detail="Không mở được trình duyệt")
+    return {"url": url}
+
+
 @app.post("/api/open-output")
 async def open_output(payload: dict = None):
     """Show the saved meetings in Explorer / Finder.

@@ -217,8 +217,13 @@ Workflow có sẵn 3 lớp kiểm tra, đọc log của bước bị đỏ:
   OpenAI/Groq API.
 - **Không universal binary** — torch không có wheel `universal2`, nên arm64 và
   Intel bắt buộc là hai bản riêng.
-- **Bản macOS mở giao diện bằng trình duyệt mặc định**, khác bản Windows đã
-  chuyển sang cửa sổ riêng (pywebview + WebView2). Xem đầu `launcher.py`.
+- **Quyền micro trong cửa sổ riêng chưa được kiểm trên máy Mac thật.** CI chứng
+  minh được backend cocoa nằm trong bundle và handler PyObjC cài được (bước
+  *Dependency selftest*), nhưng runner không có micro và không ai bấm được hộp
+  thoại quyền của macOS. Nếu handler không cấp được quyền, `launcher.py` **tự
+  quay về trình duyệt** thay vì mở một cửa sổ không ghi âm được; người dùng còn
+  nút "Mở bằng trình duyệt" ngay trong thông báo lỗi. Ép dùng trình duyệt:
+  `MEETING_SUMMARIZER_BROWSER=1`.
 - Bản CLI (`main.py` + `recorder.py`) **không** nằm trong bundle macOS; nó vẫn
   chỉ dùng cho Windows.
 

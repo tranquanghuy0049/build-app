@@ -101,22 +101,28 @@ hiddenimports += [
 if not IS_WINDOWS:
     hiddenimports.append("uvloop")
 
-# The native window. pywebview and pythonnet both register their own PyInstaller
-# hooks through the pyinstaller40 entry point, so the WebView2 DLLs under
-# webview/lib and the CLR runtime come along on their own. Only the backend
-# modules need naming: pywebview picks one at runtime by string, which leaves
-# nothing for the import graph to follow.
-#
-# macOS is deliberately absent: pywebview is not in requirements-mac.txt yet, so
-# that build keeps opening the browser as before. Its cocoa backend has the same
-# unimplemented permission handling as the Windows one, and the fix differs —
-# naming the module here before any of that is verified would only add a build
-# warning about a package that is not installed.
+# The native window. pywebview, pythonnet and pyobjc all register their own
+# PyInstaller hooks through the pyinstaller40 entry point, so the WebView2 DLLs
+# under webview/lib, the CLR runtime and the PyObjC framework bindings come
+# along on their own. Only the backend modules need naming: pywebview picks one
+# at runtime by string, which leaves nothing for the import graph to follow.
 if IS_WINDOWS:
     hiddenimports += [
         "webview.platforms.winforms",
         "webview.platforms.edgechromium",
         "clr",
+    ]
+
+if IS_MAC:
+    # objc is named on its own because launcher.py imports it directly, to add
+    # the microphone permission handler pywebview's cocoa backend lacks.
+    hiddenimports += [
+        "webview.platforms.cocoa",
+        "objc",
+        "Foundation",
+        "AppKit",
+        "WebKit",
+        "Quartz",
     ]
 
 # transformers and huggingface_hub gate features on installed package versions via

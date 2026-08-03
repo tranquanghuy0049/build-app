@@ -1242,12 +1242,14 @@
     }
     if (name === 'NotAllowedError' || name === 'PermissionDeniedError') {
       error.innerHTML = '';
-      // Bản macOS chạy trong trình duyệt, bản Windows chạy trong cửa sổ riêng —
-      // hai nơi chặn micro khác nhau, nên chỉ đúng đường cho từng máy.
+      // Hai hệ điều hành chặn micro ở hai nơi khác nhau, nên chỉ đúng đường cho
+      // từng máy. pywebview có mặt nghĩa là đang chạy trong cửa sổ riêng của
+      // app, không phải tab trình duyệt.
       const isMac = /Mac|iPad|iPhone/i.test(navigator.platform || navigator.userAgent || '');
+      const inAppWindow = !!window.pywebview;
       error.appendChild(document.createTextNode(
         isMac
-          ? 'macOS hoặc trình duyệt đang chặn micro. Bật lại trong System Settings > Privacy & Security > Microphone rồi thử lại. '
+          ? 'macOS đang chặn micro với ứng dụng này. Bật lại trong System Settings > Privacy & Security > Microphone rồi thử lại. '
           : 'Windows đang chặn micro với mọi ứng dụng. Bật lại trong Cài đặt quyền riêng tư rồi thử lại. '
       ));
       const btn = document.createElement('button');
@@ -1258,6 +1260,20 @@
         .catch(() => showError('Không mở được cài đặt, vào Settings > Privacy > Microphone'));
       error.appendChild(document.createElement('br'));
       error.appendChild(btn);
+
+      // Đường lui: trình duyệt tự xin quyền theo cách của nó, và đó là cách app
+      // này chạy suốt nhiều tháng qua. Không ai phải ngồi chờ một bản vá mới
+      // ghi âm được cuộc họp đang diễn ra.
+      if (inAppWindow) {
+        const alt = document.createElement('button');
+        alt.className = 'btn';
+        alt.style.marginTop = '8px';
+        alt.style.marginLeft = '8px';
+        alt.textContent = 'Mở bằng trình duyệt';
+        alt.onclick = () => fetch('/api/open-in-browser', { method: 'POST' })
+          .catch(() => showError('Không mở được trình duyệt'));
+        error.appendChild(alt);
+      }
       error.classList.add('show');
       return;                       // ở lại cho tới khi người dùng xử lý xong
     }
