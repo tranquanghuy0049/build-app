@@ -59,13 +59,19 @@ FALLBACK_MODEL = "gemini-flash-latest"
 # The aliases hide which family answers — gemini-flash-latest resolves to 3.6
 # today and will not tomorrow — so the style is discovered from the refusal and
 # remembered, rather than guessed from a name that is designed to change.
-_THINKING_STYLES = ("level", "budget", "none")
+#
+# "minimal" and not "low": measured on a short meeting, low spent 1082 thinking
+# tokens to produce 591 tokens of minutes and took 15s, while minimal spent none
+# and took 9s for an answer of the same length. On a real transcript that gap
+# was 52s against 9s. Those tokens are billed and counted against the free
+# tier's quota, and writing up what people actually said needs no deliberation.
+_THINKING_STYLES = ("minimal", "budget", "low", "none")
 _thinking_style = {}
 
 
 def _thinking(types, style):
-    if style == "level":
-        return types.ThinkingConfig(thinking_level="low")
+    if style in ("minimal", "low"):
+        return types.ThinkingConfig(thinking_level=style)
     if style == "budget":
         return types.ThinkingConfig(thinking_budget=0)
     return None
@@ -77,7 +83,7 @@ def _styles_for(model):
     # A version in the name is a strong hint; an alias is not. Only saves a
     # round trip on the first call either way.
     if any(old in model for old in ("1.5", "2.0", "2.5")):
-        return ("budget", "level", "none")
+        return ("budget",) + _THINKING_STYLES
     return _THINKING_STYLES
 
 
