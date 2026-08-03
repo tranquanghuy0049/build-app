@@ -6,6 +6,9 @@ __pycache__/
 *.pyc
 *.pyo
 venv/
+.venv/
+# Throwaway virtualenv that packaging/build_windows.ps1 builds into.
+.venv-build/
 # PyInstaller specs it generates itself, but ours is checked in — CI builds from it.
 *.spec
 !meeting_summarizer/packaging/*.spec
@@ -20,6 +23,13 @@ meeting_summarizer/models/
 
 # Contains a real .env; never distribute or commit it.
 meeting_summarizer/meeting_summarizer.zip
+
+# The Windows build, copied out of dist/ for hand-delivery, and its zip.
+# ~700 MB each: GitHub rejects the individual files and the repo would carry
+# them forever. Rebuild with packaging/build_windows.ps1 instead.
+meeting_summarizer/Meeting Summarizer/
+meeting_summarizer/Meeting Summarizer.zip
+meeting_summarizer/MeetingSummarizer-*.zip
 
 # Meeting outputs
 meeting_summarizer/meeting_outputs/

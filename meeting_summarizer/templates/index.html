@@ -3,236 +3,449 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Meeting Summarizer</title>
+<title>Biên bản cuộc họp</title>
+<link rel="icon" type="image/png" href="/favicon.ico">
 <style>
   *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  :root {
+    /* Light, low-contrast greys rather than pure white: a full-white page under
+       a long transcript is tiring to read, and the cards need something to sit
+       on to read as cards at all. */
+    --bg: #f4f5f8;
+    --panel: #ffffff;
+    --panel-2: #fafbfc;
+    --line: #e3e6ec;
+    --line-soft: #eef0f4;
+    --ink: #171a20;
+    --ink-2: #545c6b;
+    --ink-3: #8b93a2;
+    --accent: #2563eb;
+    --accent-hover: #1d4ed8;
+    --accent-soft: #eef3ff;
+
+    --good: #15803d;
+    --good-bg: #f0fdf4;
+    --good-line: #bbf7d0;
+    --warn: #b45309;
+    --warn-bg: #fffbeb;
+    --warn-line: #fde68a;
+    --bad: #dc2626;
+    --bad-bg: #fef2f2;
+    --bad-line: #fecaca;
+
+    /* Two layered shadows: a tight one for the edge, a wide soft one for lift.
+       One flat shadow is what makes a card look printed on. */
+    --shadow-sm: 0 1px 2px rgba(16, 24, 40, 0.04), 0 1px 3px rgba(16, 24, 40, 0.06);
+    --shadow-md: 0 1px 2px rgba(16, 24, 40, 0.05), 0 6px 16px -4px rgba(16, 24, 40, 0.10);
+    --shadow-lg: 0 8px 32px -8px rgba(16, 24, 40, 0.18), 0 2px 6px rgba(16, 24, 40, 0.06);
+  }
+
   body {
     font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-    background: #0f172a; color: #e2e8f0; min-height: 100vh;
+    background: var(--bg); color: var(--ink); min-height: 100vh;
+    /* flex-start, not center: a finished meeting is taller than the viewport and
+       vertical centring pushed the top of it off screen. */
+    display: flex; align-items: flex-start; justify-content: center;
+    font-size: 15px; line-height: 1.5;
+    -webkit-font-smoothing: antialiased;
+    font-feature-settings: 'kern' 1;
+  }
+  /* Đệm dọc vừa đủ: đây là cửa sổ ứng dụng có chiều cao cố định, không phải
+     trang web cuộn vô tận — mỗi chục pixel thừa là một chục pixel người dùng
+     phải cuộn để thấy nút bấm. */
+  .container { width: 100%; max-width: 880px; padding: 22px 24px 32px; }
+
+  /* ---- Thanh tiêu đề ---------------------------------------------------- */
+  /* No gradient blob, no tagline. A product name and the actions that belong to
+     it — the two lines of marketing copy read as a landing page, not an app. */
+  .topbar {
+    display: flex; align-items: center; gap: 12px;
+    padding-bottom: 14px; margin-bottom: 18px;
+    border-bottom: 1px solid var(--line);
+  }
+  .brand { display: flex; align-items: center; gap: 11px; flex: 1; min-width: 0; }
+  .brand-mark {
+    width: 34px; height: 34px; border-radius: 9px; flex-shrink: 0;
+    background: var(--accent-soft); color: var(--accent);
     display: flex; align-items: center; justify-content: center;
   }
-  .container { width: 100%; max-width: 860px; padding: 40px 24px; }
-  h1 {
-    font-size: 28px; font-weight: 700; text-align: center;
-    background: linear-gradient(135deg, #60a5fa, #a78bfa);
-    -webkit-background-clip: text; -webkit-text-fill-color: transparent;
-    margin-bottom: 8px;
+  .brand-mark svg { width: 18px; height: 18px; }
+  .brand h1 {
+    font-size: 16.5px; font-weight: 600; letter-spacing: -0.015em; color: var(--ink);
   }
-  .subtitle { text-align: center; color: #94a3b8; font-size: 14px; margin-bottom: 32px; }
-  .card { background: #1e293b; border-radius: 16px; padding: 32px; border: 1px solid #334155; margin-bottom: 20px; }
-  .card.sm { padding: 20px; }
 
-  .title-input {
-    width: 100%; padding: 12px 16px; border-radius: 10px;
-    border: 1px solid #334155; background: #0f172a;
-    color: #e2e8f0; font-size: 15px; outline: none; transition: border-color 0.2s;
+  .settings-btn {
+    flex-shrink: 0; height: 36px; padding: 0 13px; border-radius: 8px;
+    border: 1px solid var(--line); background: var(--panel); color: var(--ink-2);
+    font-size: 13px; font-weight: 500; font-family: inherit; cursor: pointer;
+    display: inline-flex; align-items: center; gap: 7px;
+    box-shadow: var(--shadow-sm); transition: all 0.15s;
   }
-  .title-input:focus { border-color: #60a5fa; }
-  .title-input::placeholder { color: #64748b; }
+  .settings-btn:hover { color: var(--ink); border-color: #d3d8e0; }
+  .settings-btn.needs-setup { border-color: var(--warn-line); background: var(--warn-bg); color: var(--warn); }
+  .settings-btn svg { width: 15px; height: 15px; }
 
-  .btn-wrapper { text-align: center; margin: 20px 0; }
+  /* ---- Màn hình --------------------------------------------------------- */
+  /* Three separate screens, one at a time. Stacked on one page, the form you
+     already filled in, the live feed and the finished minutes all competed for
+     the same attention and none of them read as the thing to look at.
+     No numbered stepper above them: that is the pattern for a form you fill in
+     once — sign-up, checkout — and it framed recording a meeting as paperwork.
+     Recording apps show state through the recording control itself, which here
+     is loud enough to leave no doubt about which screen you are on. */
+  .view { display: none; }
+  .view.active { display: block; }
+
+  /* ---- Khối chung ------------------------------------------------------- */
+  .card {
+    background: var(--panel); border: 1px solid var(--line);
+    border-radius: 14px; margin-bottom: 16px; box-shadow: var(--shadow-sm);
+  }
+  .card-head {
+    display: flex; align-items: center; gap: 10px;
+    padding: 15px 20px; border-bottom: 1px solid var(--line-soft);
+  }
+  .card-head h2 {
+    font-size: 14px; font-weight: 600; letter-spacing: -0.005em; color: var(--ink);
+  }
+  .card-head .badge {
+    font-size: 11px; background: var(--panel-2); border: 1px solid var(--line);
+    color: var(--ink-3); padding: 2px 8px; border-radius: 20px; font-weight: 500;
+  }
+  .spacer { flex: 1; }
+  .card-body { padding: 20px; }
+
+  /* ---- Biểu mẫu --------------------------------------------------------- */
+  .field-row { margin-bottom: 14px; }
+  .field-row > label {
+    display: block; font-size: 13px; font-weight: 500;
+    color: var(--ink-2); margin-bottom: 6px;
+  }
+  .field-row .optional { color: var(--ink-3); font-weight: 400; }
+  /* font-family: inherit matters on the textarea — without it the browser
+     default of monospace applied and the goals box rendered in a different
+     typeface from every other input on the page. */
+  .text-input {
+    width: 100%; padding: 10px 13px; border-radius: 9px;
+    border: 1px solid var(--line); background: var(--panel);
+    color: var(--ink); font-size: 14px; font-family: inherit; line-height: 1.5;
+    outline: none; transition: border-color 0.15s, box-shadow 0.15s;
+  }
+  .text-input:hover { border-color: #d3d8e0; }
+  .text-input:focus {
+    border-color: var(--accent);
+    box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.12);
+  }
+  .text-input::placeholder { color: var(--ink-3); }
+  textarea.text-input { min-height: 62px; resize: vertical; display: block; }
+
+  /* ---- Hàng điều khiển ghi âm ------------------------------------------- */
+  .record-row {
+    display: flex; align-items: center; gap: 12px; flex-wrap: wrap;
+    padding-top: 16px; margin-top: 2px; border-top: 1px solid var(--line-soft);
+  }
+  /* A pill, not a 120px circle. The circle left a large empty well in the
+     middle of the card that read as an unfinished screen. */
   .record-btn {
-    width: 120px; height: 120px; border-radius: 50%;
-    border: 4px solid #475569; background: #1e293b;
-    cursor: pointer; display: inline-flex; align-items: center; justify-content: center;
-    transition: all 0.3s ease; position: relative;
+    display: inline-flex; align-items: center; justify-content: center; gap: 9px;
+    height: 42px; padding: 0 22px; border-radius: 21px;
+    border: 1px solid transparent; background: var(--accent); color: #fff;
+    font-size: 14px; font-weight: 600; font-family: inherit; cursor: pointer;
+    box-shadow: 0 1px 2px rgba(16, 24, 40, 0.1);
+    transition: background 0.15s, box-shadow 0.15s;
   }
-  .record-btn:hover { border-color: #60a5fa; transform: scale(1.05); }
-  .record-btn.recording { border-color: #ef4444; animation: pulse 1.5s ease-in-out infinite; }
-  .record-btn.processing { border-color: #f59e0b; pointer-events: none; }
-  .record-btn .icon { font-size: 36px; transition: all 0.3s ease; }
-  .record-btn.recording .icon { color: #ef4444; }
-  .record-btn .status-text {
-    position: absolute; bottom: -28px; left: 50%; transform: translateX(-50%);
-    font-size: 13px; color: #94a3b8; white-space: nowrap;
+  .record-btn:hover { background: var(--accent-hover); box-shadow: var(--shadow-md); }
+  .record-btn .icon { font-size: 15px; line-height: 1; display: inline-flex; }
+  .record-btn.recording {
+    background: var(--bad); animation: pulse 2s ease-in-out infinite;
   }
-  .record-btn.recording .status-text { color: #ef4444; }
-
   @keyframes pulse {
-    0%, 100% { box-shadow: 0 0 0 0 rgba(239, 68, 68, 0.4); }
-    50% { box-shadow: 0 0 0 20px rgba(239, 68, 68, 0); }
+    0%, 100% { box-shadow: 0 0 0 0 rgba(220, 38, 38, 0.28); }
+    50% { box-shadow: 0 0 0 9px rgba(220, 38, 38, 0); }
   }
 
-  .timer { text-align: center; font-size: 24px; font-weight: 600; font-variant-numeric: tabular-nums; margin-top: 8px; min-height: 36px; color: #94a3b8; }
-  .timer.active { color: #fbbf24; }
-  .error { background: #7f1d1d; border: 1px solid #dc2626; border-radius: 10px; padding: 16px; color: #fca5a5; font-size: 14px; display: none; }
+  .timer {
+    font-size: 20px; font-weight: 600; font-variant-numeric: tabular-nums;
+    color: var(--ink-3); letter-spacing: -0.01em;
+  }
+  .timer.active { color: var(--ink); }
+  .timer.big { font-size: 29px; color: var(--ink); }
+
+  .stop-btn {
+    display: inline-flex; align-items: center; justify-content: center; gap: 8px;
+    height: 40px; padding: 0 20px; border-radius: 20px;
+    border: 1px solid var(--bad-line); background: var(--bad-bg);
+    color: var(--bad); font-size: 14px; font-weight: 600; font-family: inherit;
+    cursor: pointer; transition: all 0.15s;
+  }
+  .stop-btn:hover { background: var(--bad); border-color: var(--bad); color: #fff; }
+  .stop-btn:disabled { opacity: 0.65; cursor: default; }
+
+  .rec-meeting {
+    padding: 13px 20px; border-bottom: 1px solid var(--line-soft);
+    background: var(--panel-2); font-size: 13px; color: var(--ink-3);
+  }
+  .rec-meeting strong { color: var(--ink); font-weight: 600; font-size: 14px; }
+
+  .visualizer { display: none; align-items: flex-end; gap: 3px; height: 26px; }
+  .visualizer.active { display: flex; }
+  /* Negative delays, so every bar is already mid-animation on the first frame.
+     Positive ones left the later bars at their un-animated height of zero until
+     their turn came, and the meter appeared as one lonely stub. */
+  .visualizer .bar {
+    width: 3px; height: 6px; border-radius: 2px; background: var(--accent);
+    animation: viz 0.5s ease-in-out infinite alternate;
+  }
+  .visualizer .bar:nth-child(1) { animation-delay: -0.05s; }
+  .visualizer .bar:nth-child(2) { animation-delay: -0.15s; }
+  .visualizer .bar:nth-child(3) { animation-delay: -0.30s; }
+  .visualizer .bar:nth-child(4) { animation-delay: -0.42s; }
+  .visualizer .bar:nth-child(5) { animation-delay: -0.10s; }
+  .visualizer .bar:nth-child(6) { animation-delay: -0.36s; }
+  .visualizer .bar:nth-child(7) { animation-delay: -0.22s; }
+  .visualizer .bar:nth-child(8) { animation-delay: -0.47s; }
+  @keyframes viz {
+    0% { height: 6px; background: #93b4fb; }
+    100% { height: 24px; background: var(--accent); }
+  }
+
+  /* ---- Bảng nghe trực tiếp ---------------------------------------------- */
+  .live-indicator { display: none; align-items: center; gap: 7px; font-size: 13px; font-weight: 600; }
+  .live-indicator.active { display: flex; }
+  .live-dot {
+    width: 7px; height: 7px; border-radius: 50%; flex-shrink: 0;
+    background: #16a34a; animation: live-pulse 1.5s ease-in-out infinite;
+  }
+  @keyframes live-pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.25; } }
+
+  .realtime-box {
+    max-height: 300px; min-height: 96px; overflow-y: auto;
+    padding: 6px 20px 14px;
+  }
+  .realtime-placeholder { color: var(--ink-3); font-size: 14px; }
+  .realtime-entry {
+    padding: 8px 0; border-bottom: 1px solid var(--line-soft);
+    font-size: 14.5px; line-height: 1.6; color: var(--ink);
+  }
+  .realtime-entry:last-child { border-bottom: none; }
+  .realtime-time {
+    color: var(--ink-3); font-size: 12px;
+    font-variant-numeric: tabular-nums; margin-right: 4px;
+  }
+
+  .status-line {
+    display: flex; align-items: center; gap: 8px;
+    font-size: 12.5px; color: var(--ink-3);
+    padding: 10px 20px; border-top: 1px solid var(--line-soft);
+    background: var(--panel-2); border-radius: 0 0 13px 13px;
+  }
+  .status-line.processing { color: var(--warn); }
+  .status-line.processing::before {
+    content: ''; width: 6px; height: 6px; border-radius: 50%;
+    background: currentColor; animation: live-pulse 1.2s ease-in-out infinite;
+  }
+
+  .topic-warning {
+    display: none; align-items: flex-start; gap: 11px;
+    background: var(--warn-bg); border-top: 1px solid var(--warn-line);
+    border-bottom: 1px solid var(--warn-line);
+    padding: 13px 20px; font-size: 13px;
+  }
+  .topic-warning.show { display: flex; }
+  .topic-warning-icon { flex-shrink: 0; margin-top: 1px; }
+  .topic-warning-title { font-weight: 600; color: var(--warn); margin-bottom: 2px; }
+  .topic-warning-text { color: #92400e; line-height: 1.55; }
+  .topic-warning-goal { color: var(--ink-3); font-size: 12px; margin-top: 4px; }
+
+  /* ---- Đầu trang kết quả ------------------------------------------------ */
+  /* Replaces the live feed once results are in, and answers the three things a
+     user asks at that moment: what was recorded, how much of it, and where the
+     files went. */
+  .result-head {
+    display: none; border-radius: 14px; padding: 17px 20px; margin-bottom: 16px;
+    background: var(--good-bg); border: 1px solid var(--good-line);
+  }
+  .result-head.show { display: block; }
+  .result-head.warn { background: var(--warn-bg); border-color: var(--warn-line); }
+  .result-head-top { display: flex; align-items: baseline; gap: 9px; flex-wrap: wrap; }
+  .result-title { font-size: 15.5px; font-weight: 600; color: var(--ink); letter-spacing: -0.01em; }
+  .result-facts { color: var(--ink-2); font-size: 13px; }
+  .result-note { font-size: 13px; color: var(--good); margin-top: 7px; line-height: 1.55; }
+  .result-head.warn .result-note { color: #92400e; }
+  .result-path {
+    font-size: 12px; color: var(--ink-2); margin-top: 9px;
+    padding-top: 9px; border-top: 1px solid rgba(0, 0, 0, 0.07);
+    font-family: ui-monospace, Menlo, Consolas, monospace; word-break: break-all;
+  }
+
+  /* ---- Nội dung kết quả -------------------------------------------------- */
+  .content-box {
+    padding: 6px 20px 20px; font-size: 14.5px; line-height: 1.75;
+    max-height: 440px; overflow-y: auto; color: var(--ink);
+  }
+  .content-box.plain { white-space: pre-wrap; }
+  .content-box > *:first-child { margin-top: 0; }
+  .content-box > *:last-child { margin-bottom: 0; }
+  .content-box p { margin: 0 0 11px; }
+  .content-box h4 {
+    margin: 20px 0 9px; font-size: 13px; font-weight: 600; color: var(--ink-2);
+    text-transform: uppercase; letter-spacing: 0.05em;
+  }
+  .content-box strong { color: var(--ink); font-weight: 600; }
+  .content-box ul, .content-box ol { margin: 0 0 11px; padding-left: 22px; }
+  .content-box li { margin-bottom: 5px; }
+  .content-box code {
+    background: var(--panel-2); border: 1px solid var(--line);
+    border-radius: 4px; padding: 1px 5px; font-size: 13px;
+  }
+
+  /* One recognised utterance per row. Run together as one blob they read as
+     broken prose; separated, they read as what they are — a log of what was
+     said, in order. */
+  .t-line { padding: 6px 0 6px 14px; border-left: 2px solid var(--line); }
+  .t-line + .t-line { margin-top: 2px; }
+
+  .action-bar {
+    display: flex; gap: 9px; flex-wrap: wrap;
+    padding: 14px 20px; border-top: 1px solid var(--line-soft);
+  }
+  .btn {
+    display: inline-flex; align-items: center; gap: 7px;
+    padding: 9px 16px; border-radius: 8px; font-size: 13px; font-weight: 500;
+    font-family: inherit; border: 1px solid var(--line); cursor: pointer;
+    background: var(--panel); color: var(--ink-2);
+    text-decoration: none; box-shadow: var(--shadow-sm); transition: all 0.15s;
+  }
+  .btn:hover { color: var(--ink); border-color: #d3d8e0; box-shadow: var(--shadow-md); }
+  /* Copying is what people actually do with a transcript — it carries the
+     filled weight. Downloading is the secondary path, not the loudest button
+     on the screen. */
+  .btn.primary { background: var(--accent); border-color: var(--accent); color: #fff; }
+  .btn.primary:hover { background: var(--accent-hover); border-color: var(--accent-hover); color: #fff; }
+  .btn.lg {
+    padding: 11px 20px; font-size: 14px; font-weight: 600; border-radius: 10px;
+  }
+  .btn.copied { background: var(--good-bg); border-color: var(--good-line); color: var(--good); }
+
+  .error {
+    background: var(--bad-bg); border: 1px solid var(--bad-line);
+    border-radius: 11px; padding: 13px 16px; color: #991b1b;
+    font-size: 13.5px; display: none; margin-bottom: 16px;
+  }
   .error.show { display: block; }
 
-  h2 { font-size: 18px; font-weight: 600; margin-bottom: 12px; display: flex; align-items: center; gap: 8px; }
-  h2 .badge { font-size: 12px; background: #334155; color: #94a3b8; padding: 2px 8px; border-radius: 6px; font-weight: 400; }
-
-  .content-box {
-    background: #0f172a; border: 1px solid #334155; border-radius: 10px;
-    padding: 20px; font-size: 14px; line-height: 1.7;
-    max-height: 300px; overflow-y: auto; white-space: pre-wrap;
+  .setup-banner {
+    display: none; gap: 12px; align-items: center;
+    background: var(--warn-bg); border: 1px solid var(--warn-line);
+    border-radius: 11px; padding: 13px 16px; margin-bottom: 16px;
+    font-size: 13.5px; color: #92400e;
   }
-  .content-box.transcript { border-left: 3px solid #60a5fa; }
-  .content-box.summary { border-left: 3px solid #a78bfa; }
-
-  .download-bar { display: flex; gap: 10px; flex-wrap: wrap; margin-top: 12px; }
-  .download-btn {
-    display: inline-flex; align-items: center; gap: 6px;
-    padding: 10px 20px; border-radius: 8px; font-size: 14px; font-weight: 500;
-    border: none; cursor: pointer; transition: all 0.2s; text-decoration: none;
-  }
-  .download-btn:hover { transform: translateY(-1px); }
-  .download-btn.md { background: #1e40af; color: #bfdbfe; }
-  .download-btn.md:hover { background: #1d4ed8; }
-  .download-btn.copy { background: #334155; color: #cbd5e1; }
-  .download-btn.copy:hover { background: #475569; }
-  .download-btn.copy.copied { background: #166534; color: #bbf7d0; }
+  .setup-banner.show { display: flex; }
+  .setup-banner-body { flex: 1; }
+  .setup-banner-title { font-weight: 600; color: var(--warn); margin-bottom: 2px; }
 
   .spinner {
-    display: inline-block; width: 20px; height: 20px;
-    border: 2px solid #f59e0b; border-top-color: transparent;
+    display: inline-block; width: 15px; height: 15px;
+    border: 2px solid currentColor; border-top-color: transparent;
     border-radius: 50%; animation: spin 0.8s linear infinite;
   }
   @keyframes spin { to { transform: rotate(360deg); } }
 
-  .visualizer { display: none; align-items: center; justify-content: center; gap: 3px; height: 40px; margin: 8px 0; }
-  .visualizer.active { display: flex; }
-  .visualizer .bar {
-    width: 4px; border-radius: 2px;
-    animation: viz 0.5s ease-in-out infinite alternate;
+  ::-webkit-scrollbar { width: 10px; height: 10px; }
+  ::-webkit-scrollbar-track { background: transparent; }
+  ::-webkit-scrollbar-thumb {
+    background: #d3d8e0; border-radius: 6px;
+    border: 3px solid transparent; background-clip: content-box;
   }
-  .visualizer .bar:nth-child(1) { height: 12px; animation-delay: 0s; }
-  .visualizer .bar:nth-child(2) { height: 20px; animation-delay: 0.1s; }
-  .visualizer .bar:nth-child(3) { height: 28px; animation-delay: 0.2s; }
-  .visualizer .bar:nth-child(4) { height: 20px; animation-delay: 0.3s; }
-  .visualizer .bar:nth-child(5) { height: 12px; animation-delay: 0.4s; }
-  .visualizer .bar:nth-child(6) { height: 22px; animation-delay: 0.5s; }
-  .visualizer .bar:nth-child(7) { height: 16px; animation-delay: 0.6s; }
-  .visualizer .bar:nth-child(8) { height: 26px; animation-delay: 0.7s; }
-  @keyframes viz {
-    0% { height: 8px; background: #60a5fa; }
-    100% { height: 32px; background: #a78bfa; }
-  }
+  ::-webkit-scrollbar-thumb:hover { background: #b8bfcb; background-clip: content-box; }
 
-  .content-box::-webkit-scrollbar { width: 6px; }
-  .content-box::-webkit-scrollbar-track { background: transparent; }
-  .content-box::-webkit-scrollbar-thumb { background: #475569; border-radius: 3px; }
-
-  .live-indicator {
-    display: none; align-items: center; gap: 6px;
-    font-size: 12px; color: #60a5fa; margin-bottom: 8px;
-  }
-  .live-indicator.active { display: flex; }
-  .live-dot {
-    width: 8px; height: 8px; border-radius: 50%;
-    background: #22c55e; animation: live-pulse 1.5s ease-in-out infinite;
-  }
-  @keyframes live-pulse {
-    0%, 100% { opacity: 1; }
-    50% { opacity: 0.3; }
-  }
-
-  .realtime-box { max-height: 200px; min-height: 60px; margin-bottom: 0; border-bottom-left-radius: 0; border-bottom-right-radius: 0; }
-  .status-line { font-size: 13px; color: #64748b; padding: 8px 16px; border: 1px solid #334155; border-top: none; border-radius: 0 0 10px 10px; background: #0f172a; margin-bottom: 16px; }
-  .status-line.processing { color: #f59e0b; }
-  .status-line.done { color: #22c55e; }
-
-  .topic-warning {
-    display: none; align-items: flex-start; gap: 12px;
-    background: #78350f; border: 1px solid #f59e0b; border-radius: 10px;
-    padding: 12px 16px; margin-bottom: 12px; font-size: 13px;
-  }
-  .topic-warning.show { display: flex; }
-  .topic-warning-icon { font-size: 18px; flex-shrink: 0; margin-top: 1px; }
-  .topic-warning-title { font-weight: 600; color: #fbbf24; margin-bottom: 2px; }
-  .topic-warning-text { color: #fde68a; line-height: 1.5; }
-  .topic-warning-goal { color: #94a3b8; font-size: 12px; margin-top: 4px; }
-
-  .realtime-entry {
-    padding: 6px 0; border-bottom: 1px solid #1e293b;
-  }
-  .realtime-entry:last-child { border-bottom: none; }
-
-  .settings-btn {
-    position: absolute; top: 40px; right: 24px;
-    width: 40px; height: 40px; border-radius: 10px;
-    border: 1px solid #334155; background: #1e293b; color: #94a3b8;
-    font-size: 18px; cursor: pointer; transition: all 0.2s;
-  }
-  .settings-btn:hover { border-color: #60a5fa; color: #e2e8f0; }
-  .settings-btn.needs-setup { border-color: #f59e0b; color: #fbbf24; }
-
-  .setup-banner {
-    display: none; gap: 12px; align-items: center;
-    background: #422006; border: 1px solid #b45309; border-radius: 10px;
-    padding: 14px 16px; margin-bottom: 20px; font-size: 14px; color: #fde68a;
-  }
-  .setup-banner.show { display: flex; }
-  .setup-banner-body { flex: 1; }
-  .setup-banner-title { font-weight: 600; color: #fbbf24; margin-bottom: 2px; }
-
+  /* ---- Cài đặt ----------------------------------------------------------- */
   .modal {
     display: none; position: fixed; inset: 0; z-index: 50;
-    background: rgba(2, 6, 23, 0.75);
+    background: rgba(23, 26, 32, 0.45); backdrop-filter: blur(2px);
     align-items: center; justify-content: center; padding: 20px;
   }
   .modal.show { display: flex; }
   .modal-card {
-    background: #1e293b; border: 1px solid #334155; border-radius: 16px;
-    padding: 28px; width: 100%; max-width: 520px;
-    max-height: 90vh; overflow-y: auto;
+    background: var(--panel); border: 1px solid var(--line);
+    border-radius: 14px; padding: 26px; width: 100%; max-width: 520px;
+    max-height: 90vh; overflow-y: auto; box-shadow: var(--shadow-lg);
   }
-  .modal-card h2 { font-size: 20px; margin-bottom: 4px; }
-  .modal-sub { color: #94a3b8; font-size: 13px; margin-bottom: 20px; }
+  .modal-card h2 { font-size: 17px; font-weight: 600; letter-spacing: -0.015em; margin-bottom: 4px; }
+  .modal-sub { color: var(--ink-3); font-size: 13px; margin-bottom: 20px; }
 
-  .field { margin-bottom: 18px; }
-  .field label { display: block; font-size: 13px; font-weight: 600; margin-bottom: 6px; }
-  .field .req { color: #fbbf24; font-weight: 400; font-size: 12px; }
-  .field .opt { color: #64748b; font-weight: 400; font-size: 12px; }
+  .field { margin-bottom: 17px; }
+  .field label { display: block; font-size: 13px; font-weight: 500; color: var(--ink-2); margin-bottom: 6px; }
+  .field .req { color: var(--warn); font-weight: 400; font-size: 12px; }
   .field input, .field select {
-    width: 100%; padding: 10px 12px; border-radius: 8px;
-    border: 1px solid #334155; background: #0f172a; color: #e2e8f0;
+    width: 100%; padding: 9px 12px; border-radius: 8px;
+    border: 1px solid var(--line); background: var(--panel); color: var(--ink);
     font-size: 14px; outline: none; font-family: inherit;
+    transition: border-color 0.15s, box-shadow 0.15s;
   }
-  .field input:focus, .field select:focus { border-color: #60a5fa; }
-  .field .hint { font-size: 12px; color: #64748b; margin-top: 5px; line-height: 1.5; }
-  .field .hint a { color: #60a5fa; }
-  .field .hint.stored { color: #34d399; }
+  .field input:focus, .field select:focus {
+    border-color: var(--accent); box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.12);
+  }
+  .field .hint { font-size: 12px; color: var(--ink-3); margin-top: 6px; line-height: 1.55; }
+  .field .hint a { color: var(--accent); }
+  .field .hint.stored { color: var(--good); }
 
-  .modal-actions { display: flex; gap: 10px; justify-content: flex-end; margin-top: 24px; }
+  .modal-actions { display: flex; gap: 9px; justify-content: flex-end; margin-top: 22px; }
   .modal-actions button {
-    padding: 10px 20px; border-radius: 8px; font-size: 14px;
-    font-weight: 600; cursor: pointer; border: 1px solid transparent;
-    font-family: inherit;
+    padding: 9px 18px; border-radius: 8px; font-size: 13.5px;
+    font-weight: 600; cursor: pointer; border: 1px solid transparent; font-family: inherit;
   }
-  .btn-ghost { background: transparent; border-color: #334155 !important; color: #94a3b8; }
-  .btn-ghost:hover { color: #e2e8f0; }
-  .btn-primary { background: #2563eb; color: #fff; }
-  .btn-primary:hover { background: #1d4ed8; }
+  .btn-ghost { background: var(--panel); border-color: var(--line) !important; color: var(--ink-2); }
+  .btn-ghost:hover { color: var(--ink); }
+  .btn-primary { background: var(--accent); color: #fff; }
+  .btn-primary:hover { background: var(--accent-hover); }
   .btn-primary:disabled { opacity: 0.6; cursor: default; }
 
-  .modal-msg { font-size: 13px; margin-top: 14px; display: none; }
+  .modal-msg { font-size: 13px; margin-top: 13px; display: none; }
   .modal-msg.show { display: block; }
-  .modal-msg.err { color: #fca5a5; }
-  .modal-msg.ok { color: #34d399; }
-  .config-path {
-    font-size: 11px; color: #475569; margin-top: 18px;
-    word-break: break-all; border-top: 1px solid #334155; padding-top: 12px;
-  }
+  .modal-msg.err { color: #991b1b; }
+  .modal-msg.ok { color: var(--good); }
 
-  @media (max-width: 600px) {
-    .settings-btn { top: 20px; right: 16px; }
-    .container { padding: 20px 16px; }
-    .card, .card.sm { padding: 20px; }
-    .record-btn { width: 100px; height: 100px; }
-    .record-btn .icon { font-size: 28px; }
-    .content-box { max-height: 200px; }
+  @media (max-width: 620px) {
+    .container { padding: 20px 16px 48px; }
+    .card-body, .action-bar, .status-line, .realtime-box, .content-box,
+    .card-head, .rec-meeting { padding-left: 16px; padding-right: 16px; }
+    .record-row { gap: 12px; }
+    .content-box { max-height: 320px; }
+    .timer.big { font-size: 24px; }
   }
 </style>
 </head>
 <body>
 <div class="container">
-  <h1>Meeting Summarizer</h1>
-  <p class="subtitle">Ghi âm cuộc họp &amp; tự động tóm tắt</p>
 
-  <button class="settings-btn" id="settingsBtn" onclick="openSettings()" title="Cài đặt API key">⚙</button>
+  <header class="topbar">
+    <div class="brand">
+      <!-- A drawn mark, not an emoji: emoji render differently on every machine
+           and at that size read as a sticker rather than as an app icon. -->
+      <span class="brand-mark">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"
+             stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <rect x="9" y="2" width="6" height="11" rx="3"/>
+          <path d="M5 10.5V11a7 7 0 0 0 14 0v-.5"/>
+          <path d="M12 18v3"/>
+        </svg>
+      </span>
+      <h1>Biên bản cuộc họp</h1>
+    </div>
+    <button class="settings-btn" id="settingsBtn" onclick="openSettings()" title="Cài đặt API key">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"
+           stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+        <circle cx="12" cy="12" r="3"/>
+        <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.6a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/>
+      </svg>
+      <span>Cài đặt</span>
+    </button>
+  </header>
 
   <div class="setup-banner" id="setupBanner">
-    <span style="font-size:18px">⚠️</span>
+    <span style="font-size:17px">⚠️</span>
     <div class="setup-banner-body">
       <div class="setup-banner-title">Chưa cấu hình xong</div>
       <div id="setupBannerText"></div>
@@ -240,37 +453,63 @@
     <button class="btn-primary" style="padding:8px 14px;border:none;border-radius:8px;font-size:13px;font-weight:600;cursor:pointer;font-family:inherit" onclick="openSettings()">Mở cài đặt</button>
   </div>
 
-  <div class="card">
-    <input type="text" id="meetingTitle" class="title-input" placeholder="Nhập tiêu đề cuộc họp..." maxlength="100">
-
-    <div style="margin-top:12px">
-      <textarea id="meetingGoals" class="title-input" style="min-height:60px;resize:vertical;font-size:14px" placeholder="Nhập mục tiêu / chủ đề chính của cuộc họp hôm nay (VD: Bàn về kế hoạch phát triển tính năng mới cho ứng dụng)..."></textarea>
-    </div>
-
-    <div class="btn-wrapper">
-      <button class="record-btn" id="recordBtn" onclick="toggleRecording()">
-        <span class="icon">🎤</span>
-        <span class="status-text">Bắt đầu</span>
-      </button>
-    </div>
-
-    <div class="visualizer" id="visualizer">
-      <div class="bar"></div><div class="bar"></div><div class="bar"></div>
-      <div class="bar"></div><div class="bar"></div><div class="bar"></div>
-      <div class="bar"></div><div class="bar"></div>
-    </div>
-
-    <div class="timer" id="timer"></div>
-  </div>
-
   <div class="error" id="error"></div>
 
-  <div id="realtimeSection" style="display:none">
-    <div class="card sm">
-      <div class="live-indicator" id="liveIndicator">
-        <span class="live-dot"></span>
-        <span>Đang ghi & nhận dạng giọng nói...</span>
+  <!-- ===== Màn hình 1: chuẩn bị ===== -->
+  <div class="view active" id="viewSetup">
+    <section class="card">
+      <div class="card-head">
+        <h2>Thông tin cuộc họp</h2>
       </div>
+      <div class="card-body">
+        <div class="field-row">
+          <label for="meetingTitle">Tiêu đề</label>
+          <input type="text" id="meetingTitle" class="text-input" maxlength="100"
+                 placeholder="VD: Họp giao ban tuần 31">
+        </div>
+
+        <div class="field-row">
+          <label for="meetingGoals">Mục tiêu / chủ đề chính <span class="optional">— tuỳ chọn</span></label>
+          <textarea id="meetingGoals" class="text-input"
+                    placeholder="VD: Bàn kế hoạch phát triển tính năng quản lý công việc trong quý 3"></textarea>
+        </div>
+
+        <div class="record-row">
+          <button class="record-btn" id="startBtn" onclick="startRecording()">
+            <span class="icon">●</span>
+            <span class="status-text">Bắt đầu ghi</span>
+          </button>
+          <!-- Shown only when a previous meeting is still in local storage, so a
+               reload or a stray click no longer throws the last result away. -->
+          <button class="btn" id="lastResultBtn" style="display:none" onclick="showLastResult()"></button>
+        </div>
+      </div>
+    </section>
+  </div>
+
+  <!-- ===== Màn hình 2: đang ghi ===== -->
+  <div class="view" id="viewRecording">
+    <section class="card">
+      <div class="card-head">
+        <div class="live-indicator active" id="liveIndicator">
+          <span class="live-dot"></span>
+          <span id="liveLabel">Đang ghi âm</span>
+        </div>
+        <div class="timer big active" id="timer">00:00</div>
+        <div class="visualizer active" id="visualizer">
+          <div class="bar"></div><div class="bar"></div><div class="bar"></div>
+          <div class="bar"></div><div class="bar"></div><div class="bar"></div>
+          <div class="bar"></div><div class="bar"></div>
+        </div>
+        <div class="spacer"></div>
+        <button class="stop-btn" id="stopBtn" onclick="stopRecording()">■ Kết thúc</button>
+      </div>
+
+      <div class="rec-meeting">
+        <strong id="recTitle">Cuộc họp không đặt tên</strong>
+        <span id="recGoals"></span>
+      </div>
+
       <div class="topic-warning" id="topicWarning">
         <span class="topic-warning-icon">⚠️</span>
         <div>
@@ -279,31 +518,62 @@
           <div class="topic-warning-goal" id="topicWarningGoal"></div>
         </div>
       </div>
-      <div class="content-box realtime-box" id="realtimeTranscript">
-        <span style="color:#64748b">Chờ giọng nói...</span>
+
+      <div class="realtime-box" id="realtimeTranscript">
+        <span class="realtime-placeholder">Chờ giọng nói...</span>
       </div>
-      <div class="status-line" id="statusLine"></div>
-    </div>
+      <div class="status-line">
+        <span id="statusLine"></span>
+        <span class="spacer"></span>
+        <span class="badge" id="liveCount">0 đoạn</span>
+      </div>
+    </section>
   </div>
 
-  <div class="results" id="results" style="display:none">
-    <div class="card">
-      <h2>Transcript <span class="badge">chi tiết</span></h2>
-      <div class="content-box transcript" id="transcriptContent"></div>
-      <div class="download-bar">
-        <button class="download-btn copy" onclick="copyTranscript()">📋 Sao chép</button>
-        <a class="download-btn md" id="downloadTranscript" href="#" download>Tải xuống .md</a>
+  <!-- ===== Màn hình 3: kết quả ===== -->
+  <div class="view" id="viewResult">
+    <div class="result-head" id="resultHead">
+      <div class="result-head-top">
+        <span id="resultIcon">✅</span>
+        <span class="result-title" id="resultTitle"></span>
+        <span class="result-facts" id="resultFacts"></span>
+      </div>
+      <div class="result-note" id="resultNote"></div>
+      <div class="result-path" id="resultPath"></div>
+      <!-- Starting the next meeting is what someone does after reading these
+           minutes, so it leads and it is the only filled button up here. -->
+      <div class="action-bar" style="border-top:none;padding:14px 0 0">
+        <button class="btn primary lg" onclick="newMeeting()">
+          <span style="font-size:16px;line-height:1">＋</span> Ghi cuộc họp mới
+        </button>
+        <button class="btn" id="openFolderBtn" onclick="openOutputFolder()">📂 Mở thư mục đã lưu</button>
       </div>
     </div>
 
-    <div class="card">
-      <h2>Summary <span class="badge">tóm tắt AI</span></h2>
-      <div class="content-box summary" id="summaryContent"></div>
-      <div class="download-bar">
-        <button class="download-btn copy" onclick="copySummary()">📋 Sao chép</button>
-        <a class="download-btn md" id="downloadSummary" href="#" download>Tải xuống .md</a>
+    <!-- Biên bản đứng trước: đây mới là thứ người dùng cần. -->
+    <section class="card">
+      <div class="card-head">
+        <h2>Biên bản</h2>
+        <span class="badge">AI tóm tắt</span>
       </div>
-    </div>
+      <div class="content-box" id="summaryContent"></div>
+      <div class="action-bar">
+        <button class="btn primary" id="copySummaryBtn" onclick="copySummary()">📋 Sao chép biên bản</button>
+        <button class="btn" id="downloadSummary" onclick="downloadSummaryFile()">↓ Lưu thành file .txt</button>
+      </div>
+    </section>
+
+    <section class="card">
+      <div class="card-head">
+        <h2>Nội dung ghi lại</h2>
+        <span class="badge">nguyên văn</span>
+      </div>
+      <div class="content-box" id="transcriptContent"></div>
+      <div class="action-bar">
+        <button class="btn" id="copyTranscriptBtn" onclick="copyTranscript()">📋 Sao chép</button>
+        <button class="btn" id="downloadTranscript" onclick="downloadTranscriptFile()">↓ Lưu thành file .txt</button>
+      </div>
+    </section>
   </div>
 </div>
 
@@ -331,46 +601,22 @@
     </div>
 
     <div class="field">
-      <label>Nhận dạng giọng nói bằng</label>
-      <select id="set_WHISPER_PROVIDER" onchange="onProviderChange()">
-        <option value="chunkformer">ChunkFormer — offline, có sẵn trong app</option>
-        <option value="openai">OpenAI Whisper — cần OpenAI key</option>
-        <option value="groq">Groq Whisper — nhanh, có gói miễn phí</option>
-      </select>
-      <div class="hint" id="providerHint"></div>
-    </div>
-
-    <div class="field" id="field_OPENAI" style="display:none">
-      <label>OpenAI API Key <span class="req">• bắt buộc khi dùng OpenAI Whisper</span></label>
-      <input type="password" id="set_OPENAI_API_KEY" placeholder="sk-..." autocomplete="off" spellcheck="false">
-      <div class="hint" id="hint_OPENAI_API_KEY">
-        Lấy khoá tại
-        <a href="https://platform.openai.com/api-keys" target="_blank" rel="noopener">platform.openai.com</a>.
-      </div>
-    </div>
-
-    <div class="field" id="field_GROQ" style="display:none">
-      <label>Groq API Key <span class="req">• bắt buộc khi dùng Groq</span></label>
-      <input type="password" id="set_GROQ_API_KEY" placeholder="gsk_..." autocomplete="off" spellcheck="false">
-      <div class="hint" id="hint_GROQ_API_KEY">
-        Đăng ký miễn phí tại
-        <a href="https://console.groq.com" target="_blank" rel="noopener">console.groq.com</a>.
-      </div>
-    </div>
-
-    <div class="field" id="chunkformerOpts" style="display:none">
-      <label>Model ChunkFormer</label>
+      <label>Model nhận dạng giọng nói</label>
       <select id="set_CHUNKFORMER_MODEL">
         <option value="khanhld/chunkformer-ctc-large-vie">CTC — có sẵn trong app, nhanh nhất</option>
         <option value="khanhld/chunkformer-rnnt-large-vie">RNN-T — phải tải về</option>
       </select>
-      <div class="hint">Chỉ bản <strong>CTC</strong> đi kèm sẵn trong app. Bản này không thêm dấu câu — phần biên bản sẽ tự khôi phục câu chữ.</div>
+      <div class="hint">
+        Chạy ngay trên máy này bằng ChunkFormer — không cần mạng, không tốn phí,
+        âm thanh không rời khỏi máy. Chỉ bản <strong>CTC</strong> đi kèm sẵn trong app;
+        bản này không thêm dấu câu, phần biên bản sẽ tự khôi phục câu chữ.
+      </div>
     </div>
 
     <div class="field">
       <label>Thiết bị xử lý</label>
       <select id="set_LOCAL_ASR_DEVICE">
-        <option value="auto">Tự động — dùng Metal (GPU) nếu có</option>
+        <option value="auto">Tự động — dùng GPU nếu có</option>
         <option value="cpu">CPU — chậm hơn nhưng ổn định nhất</option>
       </select>
     </div>
@@ -382,7 +628,6 @@
       <button class="btn-primary" id="saveSettingsBtn" onclick="saveSettings()">Lưu</button>
     </div>
 
-    <div class="config-path" id="configPath"></div>
   </div>
 </div>
 
@@ -390,41 +635,253 @@
   let ws = null, audioContext = null, processor = null, source = null, stream = null;
   let recording = false, timerInterval = null, seconds = 0;
   let summaryReceived = false, allTranscripts = [];
+  // Markdown-stripped copies, kept for the clipboard.
+  let summaryPlain = '', transcriptPlain = '';
+  let startedAt = null;
+  // Names of the files the server already wrote, used as the suggested name in
+  // the Save As dialog.
+  let summaryFile = null, transcriptFile = null, resultFolder = null;
 
-  const recordBtn = document.getElementById('recordBtn');
+  const startBtn = document.getElementById('startBtn');
+  const stopBtn = document.getElementById('stopBtn');
   const timer = document.getElementById('timer');
   const error = document.getElementById('error');
-  const results = document.getElementById('results');
   const transcriptContent = document.getElementById('transcriptContent');
   const summaryContent = document.getElementById('summaryContent');
   const downloadTranscript = document.getElementById('downloadTranscript');
   const downloadSummary = document.getElementById('downloadSummary');
-  const visualizer = document.getElementById('visualizer');
   const meetingTitle = document.getElementById('meetingTitle');
   const meetingGoals = document.getElementById('meetingGoals');
   const realtimeTranscript = document.getElementById('realtimeTranscript');
-  const realtimeSection = document.getElementById('realtimeSection');
-  const liveIndicator = document.getElementById('liveIndicator');
+  const liveLabel = document.getElementById('liveLabel');
+  const liveCount = document.getElementById('liveCount');
   const statusLine = document.getElementById('statusLine');
+  const resultHead = document.getElementById('resultHead');
+
+  // One screen at a time: 'setup' | 'recording' | 'result'.
+  const VIEWS = ['setup', 'recording', 'result'];
+  // The address bar used to read the same on all three screens. Now each step
+  // is a real path, so Back works and a refresh lands where you were. Real
+  // paths, not #fragments — the server has a route for each of them.
+  const PATH = { setup: '/home', recording: '/recording', result: '/result' };
+  let currentView = 'setup';
+
+  function setView(name, opts) {
+    currentView = name;
+    VIEWS.forEach(v => {
+      document.getElementById('view' + v[0].toUpperCase() + v.slice(1))
+        .classList.toggle('active', v === name);
+    });
+    if (!(opts && opts.fromHistory) && location.pathname !== PATH[name]) {
+      // replace, not push, when only normalising "/" into "/setup": pushing
+      // would make Back bounce between two spellings of the same screen.
+      const nav = opts && opts.replace ? 'replaceState' : 'pushState';
+      history[nav]({ view: name }, '', PATH[name]);
+    }
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  }
+
+  window.addEventListener('popstate', () => {
+    const want = Object.keys(PATH).find(k => PATH[k] === location.pathname) || 'setup';
+    if (want === currentView) return;
+    // Leaving mid-recording would silently abandon the meeting; put the address
+    // bar back instead of following the user out.
+    if (recording || want === 'recording') {
+      history.replaceState({ view: currentView }, '', PATH[currentView]);
+      return;
+    }
+    if (want === 'result' && !summaryReceived) {
+      if (lastResult) { renderResult(lastResult); setView('result', { fromHistory: true }); }
+      else setView('setup', { fromHistory: true });
+      return;
+    }
+    setView(want, { fromHistory: true });
+  });
+
+  // ---- Nhớ kết quả gần nhất ----------------------------------------------
+  // Everything below lived only in the page. One accidental refresh and the
+  // meeting you had just finished reading was gone from the screen — the files
+  // survived on disk, but nothing on screen said so.
+  const LAST_KEY = 'meeting.lastResult';
+  let lastResult = null;
+
+  function rememberResult(data) {
+    lastResult = data;
+    try { localStorage.setItem(LAST_KEY, JSON.stringify(data)); } catch {}
+  }
+
+  function loadLastResult() {
+    try { lastResult = JSON.parse(localStorage.getItem(LAST_KEY) || 'null'); }
+    catch { lastResult = null; }
+    const btn = document.getElementById('lastResultBtn');
+    if (lastResult) {
+      btn.textContent = '↩ Xem lại: ' + (lastResult.title || 'cuộc họp gần nhất');
+      btn.style.display = '';
+    } else {
+      btn.style.display = 'none';
+    }
+  }
+
+  function showLastResult() {
+    if (!lastResult) return;
+    renderResult(lastResult);
+    setView('result');
+  }
 
   function showError(msg) {
     error.textContent = msg; error.classList.add('show');
-    setTimeout(() => error.classList.remove('show'), 5000);
+    setTimeout(() => error.classList.remove('show'), 6000);
   }
   function formatTime(s) {
     const m = Math.floor(s / 60), sec = s % 60;
     return `${String(m).padStart(2, '0')}:${String(sec).padStart(2, '0')}`;
   }
+  function humanDuration(s) {
+    const m = Math.floor(s / 60), sec = s % 60;
+    if (m && sec) return `${m} phút ${sec} giây`;
+    if (m) return `${m} phút`;
+    return `${sec} giây`;
+  }
+  function formatStamp(d) {
+    const p = n => String(n).padStart(2, '0');
+    return `${p(d.getDate())}/${p(d.getMonth() + 1)}/${d.getFullYear()} lúc ${p(d.getHours())}:${p(d.getMinutes())}`;
+  }
+
+  // Paints the whole results screen from one plain object, so a live result and
+  // one restored from storage after a reload go through exactly the same path.
+  function renderResult(d) {
+    resultHead.className = 'result-head show' + (d.warn ? ' warn' : '');
+    document.getElementById('resultIcon').textContent = d.warn ? '⚠️' : '✅';
+    document.getElementById('resultTitle').textContent = d.title || 'Cuộc họp không đặt tên';
+    document.getElementById('resultFacts').textContent = d.facts || '';
+
+    // The note only carries a line when there is something to explain. On the
+    // happy path the tick and the facts above already say everything.
+    const noteEl = document.getElementById('resultNote');
+    noteEl.textContent = d.note || '';
+    noteEl.style.display = d.note ? '' : 'none';
+    const path = document.getElementById('resultPath');
+    path.textContent = d.dir ? 'Đã lưu tại: ' + d.dir : '';
+    path.style.display = d.dir ? '' : 'none';
+
+    transcriptFile = d.transcript_file || null;
+    summaryFile = d.summary_file || null;
+    resultFolder = d.folder || null;
+
+    renderTranscript(d.transcript || '');
+    if (d.summary) {
+      summaryContent.className = 'content-box';
+      summaryContent.innerHTML = renderMarkdown(d.summary);
+      summaryPlain = stripMarkdown(d.summary);
+    } else {
+      // Plain text, not Markdown — leave it unrendered.
+      summaryContent.className = 'content-box plain';
+      summaryContent.textContent = d.summaryText || '';
+      summaryPlain = d.summaryText || '';
+    }
+    downloadSummary.style.display = summaryFile ? '' : 'none';
+    downloadTranscript.style.display = transcriptFile ? '' : 'none';
+    document.getElementById('openFolderBtn').style.display = d.dir ? '' : 'none';
+  }
+
+  function currentFacts() {
+    return [formatStamp(startedAt || new Date()),
+            humanDuration(seconds),
+            allTranscripts.length + ' đoạn'].join('  ·  ');
+  }
+
+  // The summary comes back as Markdown. It used to be dropped in with
+  // textContent, so every heading showed up wrapped in literal asterisks.
+  // Escape first, then transform, so nothing the model emits can inject markup.
+  function renderMarkdown(src) {
+    const esc = s => s.replace(/[&<>]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;' }[c]));
+    const inline = s => esc(s)
+      .replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')
+      .replace(/(^|[^*])\*([^*]+?)\*/g, '$1<em>$2</em>')
+      .replace(/`([^`]+?)`/g, '<code>$1</code>');
+
+    const out = [];
+    let list = null;
+    const closeList = () => { if (list) { out.push('</' + list + '>'); list = null; } };
+
+    for (const raw of src.split('\n')) {
+      const line = raw.trim();
+      if (!line) { closeList(); continue; }
+
+      const heading = line.match(/^#{1,6}\s+(.*)$/);
+      if (heading) { closeList(); out.push('<h4>' + inline(heading[1]) + '</h4>'); continue; }
+
+      // Requires whitespace after the marker, so a **bold** line is not a bullet.
+      const bullet = line.match(/^[*\-+]\s+(.*)$/);
+      if (bullet) {
+        if (list !== 'ul') { closeList(); out.push('<ul>'); list = 'ul'; }
+        out.push('<li>' + inline(bullet[1]) + '</li>');
+        continue;
+      }
+      const numbered = line.match(/^\d+[.)]\s+(.*)$/);
+      if (numbered) {
+        if (list !== 'ol') { closeList(); out.push('<ol>'); list = 'ol'; }
+        out.push('<li>' + inline(numbered[1]) + '</li>');
+        continue;
+      }
+      closeList();
+      out.push('<p>' + inline(line) + '</p>');
+    }
+    closeList();
+    return out.join('');
+  }
+
+  // What the Sao chép button puts on the clipboard. Reading it back off the
+  // rendered HTML would run the lines together, and the raw Markdown would
+  // paste asterisks into Word and Zalo. The saved .txt is flattened server-side
+  // by _to_plain_text() for the same reason.
+  function stripMarkdown(src) {
+    return src.split('\n').map(line => line
+      .replace(/^\s*#{1,6}\s+/, '')
+      .replace(/^\s*[*\-+]\s+/, '- ')
+      .replace(/\*\*(.+?)\*\*/g, '$1')
+      .replace(/(^|[^*])\*([^*]+?)\*/g, '$1$2')
+      .replace(/`([^`]+?)`/g, '$1')
+    ).join('\n');
+  }
+
+  // One row per recognised utterance. The engine emits no punctuation, so run
+  // together as a single block these read as one broken sentence.
+  function renderTranscript(text) {
+    transcriptPlain = text;
+    transcriptContent.className = 'content-box';
+    transcriptContent.innerHTML = '';
+    text.split('\n').filter(l => l.trim()).forEach(line => {
+      const el = document.createElement('div');
+      el.className = 't-line';
+      el.textContent = line;
+      transcriptContent.appendChild(el);
+    });
+  }
+
   function appendRealtime(text) {
     allTranscripts.push(text);
     const entry = document.createElement('div');
     entry.className = 'realtime-entry';
     const ts = new Date();
-    const timeStr = String(ts.getHours()).padStart(2,'0') + ':' + String(ts.getMinutes()).padStart(2,'0') + ':' + String(ts.getSeconds()).padStart(2,'0');
-    entry.innerHTML = '<span style="color:#64748b;font-size:12px">[' + timeStr + ']</span> ' + text;
-    if (realtimeTranscript.querySelector('span')) realtimeTranscript.innerHTML = '';
+    const p = n => String(n).padStart(2, '0');
+    const stamp = document.createElement('span');
+    stamp.className = 'realtime-time';
+    stamp.textContent = p(ts.getHours()) + ':' + p(ts.getMinutes()) + ':' + p(ts.getSeconds());
+    entry.appendChild(stamp);
+    // textContent, not innerHTML: recognised speech is untrusted text and any
+    // stray angle bracket in it would otherwise be parsed as markup.
+    entry.appendChild(document.createTextNode(' ' + text));
+    if (realtimeTranscript.querySelector('.realtime-placeholder')) realtimeTranscript.innerHTML = '';
     realtimeTranscript.appendChild(entry);
+    // New lines are appended at the bottom, so follow them down.
     realtimeTranscript.scrollTop = realtimeTranscript.scrollHeight;
+    liveCount.textContent = allTranscripts.length + ' đoạn';
+  }
+
+  function setStatus(text, state) {
+    statusLine.textContent = text;
+    statusLine.className = 'status-line' + (state ? ' ' + state : '');
   }
 
   // ---- Cài đặt API key ---------------------------------------------------
@@ -435,9 +892,12 @@
   const settingsMsg = document.getElementById('settingsMsg');
   const saveSettingsBtn = document.getElementById('saveSettingsBtn');
 
-  const SECRET_FIELDS = ['GEMINI_API_KEY', 'OPENAI_API_KEY', 'GROQ_API_KEY'];
-  const PLAIN_FIELDS = ['GEMINI_MODEL', 'WHISPER_PROVIDER', 'CHUNKFORMER_MODEL',
-                        'LOCAL_ASR_DEVICE'];
+  // Speech recognition is ChunkFormer, on this machine, full stop — so the
+  // provider picker and the hosted-API keys that went with it are gone from the
+  // screen. WHISPER_PROVIDER stays in the .env and is simply never sent, and
+  // settings.save() leaves any field it is not given alone.
+  const SECRET_FIELDS = ['GEMINI_API_KEY'];
+  const PLAIN_FIELDS = ['GEMINI_MODEL', 'CHUNKFORMER_MODEL', 'LOCAL_ASR_DEVICE'];
   let settingsState = null;
 
   function applyReadiness(state) {
@@ -460,19 +920,6 @@
       applyReadiness(settingsState);
       return settingsState;
     } catch { return null; }
-  }
-
-  function onProviderChange() {
-    const p = document.getElementById('set_WHISPER_PROVIDER').value;
-    document.getElementById('field_OPENAI').style.display = p === 'openai' ? '' : 'none';
-    document.getElementById('field_GROQ').style.display = p === 'groq' ? '' : 'none';
-    document.getElementById('chunkformerOpts').style.display = p === 'chunkformer' ? '' : 'none';
-    const hints = {
-      openai: 'Chính xác cao, tính phí theo thời lượng ghi âm. Cần thêm khoá OpenAI.',
-      groq: 'Rất nhanh và có gói miễn phí, cần khoá Groq riêng.',
-      chunkformer: 'Đã có sẵn trong app, không cần mạng và không tốn phí. Nhanh và chính xác nhất cho tiếng Việt. Âm thanh không rời khỏi máy này.'
-    };
-    document.getElementById('providerHint').textContent = hints[p] || '';
   }
 
   function setStoredHint(name) {
@@ -502,8 +949,6 @@
       if (el) el.value = '';
       setStoredHint(n);
     });
-    document.getElementById('configPath').textContent = 'Lưu tại: ' + state.config_path;
-    onProviderChange();
     settingsModal.classList.add('show');
   }
 
@@ -554,8 +999,91 @@
   document.addEventListener('keydown', e => { if (e.key === 'Escape') closeSettings(); });
   refreshSettings();
 
-  async function toggleRecording() {
-    if (recording) await stopRecording(); else await startRecording();
+  // ---- Khởi động ----------------------------------------------------------
+  loadLastResult();
+  // /recording is never restorable: the microphone stream and the socket that
+  // made that screen meaningful both died with the old page.
+  if (location.pathname === PATH.result && lastResult) {
+    renderResult(lastResult);
+    setView('result', { replace: true });
+  } else {
+    setView('setup', { replace: true });
+  }
+
+  // ---- Lưu file ----------------------------------------------------------
+  // showSaveFilePicker gives a real Save As dialog: the user picks the folder
+  // and edits the name. It has to be called inside the click, before any await
+  // on the network, or the browser no longer counts it as a user gesture.
+  // Firefox and Safari have no such API, so those fall back to a normal
+  // download with a suggested name.
+  async function saveAs(serverName, label) {
+    if (!serverName) { showError('Chưa có file để lưu'); return; }
+    let handle = null;
+    if (window.showSaveFilePicker) {
+      try {
+        handle = await window.showSaveFilePicker({
+          // Basename only: the stored name is now "<thư mục>/<file>.txt" and a
+          // separator in suggestedName makes the picker throw.
+          suggestedName: serverName.split('/').pop(),
+          types: [{ description: 'Tệp văn bản', accept: { 'text/plain': ['.txt'] } }],
+        });
+      } catch (e) {
+        if (e.name === 'AbortError') return;   // người dùng bấm Huỷ
+        handle = null;                          // trình duyệt chặn — dùng cách cũ
+      }
+    }
+    try {
+      const r = await fetch('/api/download/' + encodeURIComponent(serverName));
+      if (!r.ok) throw new Error('không tải được file');
+      const blob = await r.blob();
+      if (handle) {
+        const w = await handle.createWritable();
+        await w.write(blob);
+        await w.close();
+      } else {
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url; a.download = serverName.split('/').pop();
+        document.body.appendChild(a); a.click(); a.remove();
+        URL.revokeObjectURL(url);
+      }
+    } catch (e) {
+      showError('Không lưu được ' + label + ': ' + e.message);
+    }
+  }
+  function downloadSummaryFile() { saveAs(summaryFile, 'biên bản'); }
+  function downloadTranscriptFile() { saveAs(transcriptFile, 'nội dung ghi lại'); }
+
+  async function openOutputFolder() {
+    try {
+      // Opens this meeting's own folder, not the pile of all of them.
+      const r = await fetch('/api/open-output', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ folder: resultFolder || '' }),
+      });
+      if (!r.ok) throw new Error((await r.json()).detail || 'thất bại');
+    } catch (e) {
+      showError('Không mở được thư mục: ' + e.message);
+    }
+  }
+
+  function finishWith(data) {
+    summaryReceived = true;
+    renderResult(data);
+    rememberResult(data);
+    loadLastResult();
+    setView('result');
+  }
+
+  function newMeeting() {
+    meetingTitle.value = '';
+    meetingGoals.value = '';
+    // summaryReceived goes back to false so the results screen is reachable
+    // only through "xem lại", i.e. through the stored copy.
+    summaryReceived = false;
+    setView('setup');
+    meetingTitle.focus();
   }
 
   async function startRecording() {
@@ -597,87 +1125,122 @@
           refreshSettings().then(openSettings);
         } else if (data.type === 'transcript') {
           appendRealtime(data.text);
-          statusLine.textContent = 'Đã nhận dạng ' + allTranscripts.length + ' đoạn';
-          statusLine.className = 'status-line';
+          setStatus('Đã nhận dạng ' + allTranscripts.length + ' đoạn');
+        } else if (data.type === 'status') {
+          // Loading the model, recognising a chunk, writing the minutes: says
+          // what the pause between lines is for.
+          setStatus(data.text, data.state);
+        } else if (data.type === 'error') {
+          showError(data.text);
+          setStatus(data.text);
         } else if (data.type === 'topic_warning') {
           document.getElementById('topicWarning').classList.add('show');
-          document.getElementById('topicWarningTitle').textContent = '⚠️ Lạc chủ đề: ' + data.topic;
+          document.getElementById('topicWarningTitle').textContent = 'Lạc chủ đề: ' + data.topic;
           document.getElementById('topicWarningText').textContent = data.suggestion;
           document.getElementById('topicWarningGoal').textContent = 'Chủ đề chính: ' + (meetingGoals.value.trim() || 'không có');
-          setTimeout(() => document.getElementById('topicWarning').classList.remove('show'), 8000);
+          setTimeout(() => document.getElementById('topicWarning').classList.remove('show'), 10000);
         } else if (data.type === 'summary') {
-          statusLine.textContent = '✅ Đã xử lý xong!';
-          statusLine.className = 'status-line done';
-          liveIndicator.classList.remove('active');
-          transcriptContent.textContent = data.transcript;
-          summaryContent.textContent = data.summary;
-          downloadTranscript.href = '/api/download/' + data.transcript_file;
-          downloadSummary.href = '/api/download/' + data.summary_file;
-          results.style.display = 'block';
-          summaryReceived = true;
+          finishWith({
+            title: data.title, facts: currentFacts(), dir: data.output_dir,
+            folder: data.folder, transcript: data.transcript, summary: data.summary,
+            transcript_file: data.transcript_file, summary_file: data.summary_file,
+          });
         } else if (data.type === 'summary_error') {
           // Transcription succeeded and was saved; only the summary failed.
           // Show the transcript anyway rather than losing the meeting.
-          statusLine.textContent = '⚠️ ' + data.text;
-          statusLine.className = 'status-line';
-          liveIndicator.classList.remove('active');
-          transcriptContent.textContent = data.transcript;
-          summaryContent.textContent =
-            data.text + '\n\nBản ghi lời nói bên trên vẫn được lưu đầy đủ.'
-            + (data.detail ? '\n\nChi tiết kỹ thuật:\n' + data.detail : '');
-          if (data.transcript_file) {
-            downloadTranscript.href = '/api/download/' + data.transcript_file;
-            downloadTranscript.style.display = '';
-          }
-          downloadSummary.style.display = 'none';
-          results.style.display = 'block';
-          summaryReceived = true;
-          showError(data.text);
+          finishWith({
+            warn: true, title: data.title, facts: currentFacts(),
+            note: 'Đã lưu nội dung ghi lại, nhưng chưa viết được biên bản: ' + data.text,
+            dir: data.output_dir, folder: data.folder,
+            transcript: data.transcript, transcript_file: data.transcript_file,
+            summaryText: data.text + '\n\nNội dung ghi lại bên dưới vẫn được lưu đầy đủ.'
+              + (data.detail ? '\n\nChi tiết kỹ thuật:\n' + data.detail : ''),
+          });
+          // No showError() here: the result header above already carries this
+          // same message, and permanently rather than for a few seconds.
         } else if (data.type === 'done') {
           finishUp();
         }
       };
 
-      ws.onerror = () => { showError('WebSocket lỗi kết nối'); resetUI(); };
+      ws.onerror = () => { showError('Mất kết nối tới ứng dụng (WebSocket)'); resetUI(); };
       ws.onclose = () => { if (!summaryReceived) finishUp(); };
 
       recording = true; seconds = 0; summaryReceived = false; allTranscripts = [];
-      // Undo any hiding left over from a previous run's summary failure.
-      downloadTranscript.style.display = '';
-      downloadSummary.style.display = '';
-      recordBtn.classList.add('recording');
-      recordBtn.querySelector('.icon').textContent = '⏹';
-      recordBtn.querySelector('.status-text').textContent = 'Kết thúc';
+      startedAt = new Date();
+      summaryFile = null; transcriptFile = null; resultFolder = null;
+
+      document.getElementById('recTitle').textContent =
+        meetingTitle.value.trim() || 'Cuộc họp không đặt tên';
+      const goals = meetingGoals.value.trim();
+      document.getElementById('recGoals').textContent = goals ? ' — ' + goals : '';
+
+      stopBtn.disabled = false;
+      stopBtn.textContent = '■ Kết thúc';
+      liveLabel.textContent = 'Đang ghi âm';
       timer.classList.add('active');
       timer.textContent = '00:00';
-      visualizer.classList.add('active');
-      results.style.display = 'none';
-      realtimeSection.style.display = 'block';
-      liveIndicator.classList.add('active');
+      liveCount.textContent = '0 đoạn';
       document.getElementById('topicWarning').classList.remove('show');
-      realtimeTranscript.innerHTML = '<span style="color:#64748b">Chờ giọng nói...</span>';
-      statusLine.textContent = 'Đang ghi âm...';
-      statusLine.className = 'status-line';
+      realtimeTranscript.innerHTML = '<span class="realtime-placeholder">Chờ giọng nói...</span>';
+      setStatus('Đang chuẩn bị...');
+      setView('recording');
 
       timerInterval = setInterval(() => { seconds++; timer.textContent = formatTime(seconds); }, 1000);
     } catch (err) {
-      showError('Không thể truy cập microphone: ' + err.message);
+      showMicError(err);
     }
+  }
+
+  // The app grants itself the browser-level microphone permission, so anything
+  // that still fails here is the operating system or the hardware. Saying which
+  // one, and offering the screen that fixes it, is the difference between a
+  // solvable problem and a dead end.
+  function showMicError(err) {
+    const name = err && err.name;
+    if (name === 'NotFoundError' || name === 'DevicesNotFoundError') {
+      showError('Không tìm thấy micro nào trên máy. Cắm micro hoặc tai nghe có micro rồi thử lại.');
+      return;
+    }
+    if (name === 'NotReadableError' || name === 'TrackStartError') {
+      showError('Micro đang bị ứng dụng khác chiếm (Zoom, Teams, Meet...). Đóng ứng dụng đó rồi thử lại.');
+      return;
+    }
+    if (name === 'NotAllowedError' || name === 'PermissionDeniedError') {
+      error.innerHTML = '';
+      // Bản macOS chạy trong trình duyệt, bản Windows chạy trong cửa sổ riêng —
+      // hai nơi chặn micro khác nhau, nên chỉ đúng đường cho từng máy.
+      const isMac = /Mac|iPad|iPhone/i.test(navigator.platform || navigator.userAgent || '');
+      error.appendChild(document.createTextNode(
+        isMac
+          ? 'macOS hoặc trình duyệt đang chặn micro. Bật lại trong System Settings > Privacy & Security > Microphone rồi thử lại. '
+          : 'Windows đang chặn micro với mọi ứng dụng. Bật lại trong Cài đặt quyền riêng tư rồi thử lại. '
+      ));
+      const btn = document.createElement('button');
+      btn.className = 'btn';
+      btn.style.marginTop = '8px';
+      btn.textContent = 'Mở cài đặt micro';
+      btn.onclick = () => fetch('/api/open-mic-settings', { method: 'POST' })
+        .catch(() => showError('Không mở được cài đặt, vào Settings > Privacy > Microphone'));
+      error.appendChild(document.createElement('br'));
+      error.appendChild(btn);
+      error.classList.add('show');
+      return;                       // ở lại cho tới khi người dùng xử lý xong
+    }
+    showError('Không dùng được micro: ' + ((err && err.message) || name || 'lỗi không rõ'));
   }
 
   async function stopRecording() {
     if (!recording) return;
     recording = false;
     clearInterval(timerInterval);
-    visualizer.classList.remove('active');
-    liveIndicator.classList.remove('active');
 
-    recordBtn.classList.remove('recording');
-    recordBtn.classList.add('processing');
-    recordBtn.querySelector('.icon').innerHTML = '<div class="spinner"></div>';
-    recordBtn.querySelector('.status-text').textContent = 'Đang xử lý...';
-    statusLine.textContent = '⏳ Đang xử lý dữ liệu...';
-    statusLine.className = 'status-line processing';
+    // Stays on the recording screen until the minutes come back — the work is
+    // not finished, and jumping to an empty results screen would say it was.
+    stopBtn.disabled = true;
+    stopBtn.innerHTML = '<span class="spinner"></span> Đang xử lý...';
+    liveLabel.textContent = 'Đang hoàn tất';
+    setStatus('Đang xử lý nốt phần cuối...', 'processing');
 
     if (processor) { processor.disconnect(); processor = null; }
     if (source) { source.disconnect(); source = null; }
@@ -689,33 +1252,48 @@
 
   function finishUp() {
     if (!summaryReceived) {
-      statusLine.textContent = '⚠️ Không nhận được kết quả hoặc không có giọng nói';
-      statusLine.className = 'status-line';
+      // Nothing usable came back. Say so on the results screen rather than
+      // leaving the user on a recording screen that has quietly stopped.
+      // Not remembered: there is nothing here worth restoring later.
+      renderResult({
+        warn: true,
+        title: meetingTitle.value.trim() || 'Cuộc họp không đặt tên',
+        facts: currentFacts(),
+        note: allTranscripts.length
+          ? 'Kết nối kết thúc trước khi có biên bản. Nội dung đã nhận dạng vẫn nằm trong thư mục lưu.'
+          : 'Không nhận ra giọng nói nào trong bản ghi. Thử nói to hơn hoặc đưa micro lại gần.',
+        summaryText: '',
+      });
+      setView('result');
     }
     resetUI();
   }
 
   function resetUI() {
-    recordBtn.classList.remove('processing');
-    recordBtn.querySelector('.icon').textContent = '🎤';
-    recordBtn.querySelector('.status-text').textContent = 'Bắt đầu';
-    timer.textContent = '';
-    timer.classList.remove('active');
+    // Also reached when the socket closes without a stopRecording(), so it has
+    // to undo the recording chrome itself rather than assume that already ran.
+    recording = false;
+    clearInterval(timerInterval);
+    stopBtn.disabled = false;
+    stopBtn.textContent = '■ Kết thúc';
+    timer.textContent = '00:00';
   }
 
   async function copyText(text, btn) {
     try {
       await navigator.clipboard.writeText(text);
+      const original = btn.textContent;
       btn.textContent = '✅ Đã sao chép'; btn.classList.add('copied');
-      setTimeout(() => { btn.textContent = '📋 Sao chép'; btn.classList.remove('copied'); }, 2000);
+      setTimeout(() => { btn.textContent = original; btn.classList.remove('copied'); }, 2000);
     } catch { showError('Không thể sao chép'); }
   }
   function copyTranscript() {
-    copyText(transcriptContent.textContent, document.getElementById('results').querySelector('.download-btn.copy'));
+    copyText(transcriptPlain || transcriptContent.textContent,
+             document.getElementById('copyTranscriptBtn'));
   }
   function copySummary() {
-    const btns = document.querySelectorAll('#results .download-btn.copy');
-    copyText(summaryContent.textContent, btns[1]);
+    copyText(summaryPlain || summaryContent.textContent,
+             document.getElementById('copySummaryBtn'));
   }
 </script>
 </body>

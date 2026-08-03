@@ -1,0 +1,59 @@
+# Runtime dependencies for the Windows build.
+#
+# torch and torchaudio are NOT listed here. packaging/build_windows.ps1 installs
+# them first from PyTorch's CPU index: the default PyPI wheels on Windows bundle
+# the CUDA runtime, which adds roughly 2 GB to the installer and would only ever
+# be used by the subset of users holding an NVIDIA card.
+#
+# chunkformer is not listed here either — the same script installs it with
+# --no-deps, and the block below stands in for the dependencies it declares.
+
+numpy>=1.24.0
+
+# ---------------------------------------------------------------------------
+# chunkformer's dependencies, hand-picked.
+#
+# chunkformer declares deepspeed>=0.14.0, which ships source-only and has to be
+# compiled. There is no Windows wheel, and its build backend imports torch from
+# an isolated build env that does not have it, so `pip install chunkformer`
+# fails outright on Windows. deepspeed is a training dependency: nothing on the
+# path this app uses — ChunkFormerModel.from_pretrained + endless_decode —
+# imports it.
+#
+# So the build installs chunkformer with --no-deps and names its real imports
+# here. This list was derived by importing ChunkFormerModel against an empty
+# environment and adding whatever it asked for, so it is exactly what the
+# inference path needs and nothing more. Dropped along with deepspeed:
+# tensorboard, tensorboardX, textgrid, sentencepiece, Pillow, colorama.
+#
+# Because we now own that list, chunkformer itself is pinned — an unpinned
+# upgrade could start importing something and would fail at runtime, inside the
+# shipped installer, rather than at build time.
+jiwer>=2.3.0
+pandas>=1.3.0
+pydub>=0.25.0
+PyYAML>=5.4.0
+transformers>=4.20.0
+# ---------------------------------------------------------------------------
+
+# Writes the meeting minutes and runs topic tracking.
+google-genai>=1.0.0
+# Still needed for the optional OpenAI/Groq transcription providers.
+openai>=1.0.0
+
+python-dotenv>=1.0.0
+fastapi>=0.110.0
+uvicorn[standard]>=0.27.0
+python-multipart>=0.0.6
+
+# Native window around the local server, so the app is not a browser tab. Uses
+# WebView2 — the engine Windows already ships with Edge — so this adds well
+# under a megabyte, unlike Electron. Pulls pythonnet/clr-loader on Windows.
+pywebview>=5.0
+
+# Audio file IO. Kept because chunkformer's loader is likely to reach for it.
+soundfile>=0.12.0
+
+# Fetches the model at build time (packaging/fetch_model.py), and read at
+# runtime by chunkformer's loader.
+huggingface_hub

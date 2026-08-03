@@ -1,8 +1,20 @@
-"""Entry point for the macOS .app bundle.
+"""Entry point for the packaged macOS and Windows builds.
 
-Starts the FastAPI server on a free local port and opens the default browser at
-it. Audio capture happens in the browser (getUserMedia), so the bundle itself
-never touches CoreAudio.
+Starts the FastAPI server on a free local port and puts a UI in front of it.
+
+On Windows that is a native window (pywebview) borrowing WebView2, the engine
+Windows already ships with Edge — so nothing like Chromium is bundled; what
+ships is a few hundred kilobytes of wrapper. macOS opens the default browser
+instead: pywebview's cocoa backend has the same unimplemented microphone
+permission handling that the Windows one needed working around, and none of
+that is verified on a Mac yet. The browser works, it is just visibly a web
+page — an address bar reading 127.0.0.1 and a tab that can be closed while the
+server keeps running.
+
+The browser is also the fallback on a Windows machine with no usable WebView2.
+
+Audio capture still happens in the page (getUserMedia), so the bundle itself
+never touches CoreAudio or WASAPI.
 """
 import multiprocessing
 import os
@@ -42,9 +54,25 @@ def _setup_output(log_path):
 
 
 def _alert(title, message):
-    if sys.platform != "darwin":
-        print(f"{title}: {message}")
+    # Always log it: the dialog is best-effort, the log is not. Both builds are
+    # windowed, so a bare print would reach nobody.
+    print(f"{title}: {message}")
+
+    if sys.platform == "win32":
+        try:
+            import ctypes
+            MB_ICONERROR = 0x10
+            MB_SETFOREGROUND = 0x10000
+            ctypes.windll.user32.MessageBoxW(
+                None, message[:900], title, MB_ICONERROR | MB_SETFOREGROUND
+            )
+        except Exception:
+            pass
         return
+
+    if sys.platform != "darwin":
+        return
+
     safe = message.replace("\\", "\\\\").replace('"', '\\"')[:900]
     try:
         subprocess.run(
@@ -68,7 +96,7 @@ def _find_free_port(start=DEFAULT_PORT, attempts=PORT_ATTEMPTS):
     raise RuntimeError(f"No free port in {start}-{start + attempts - 1}")
 
 
-def _open_browser_when_ready(url, timeout=180):
+def _wait_healthy(url, timeout=180):
     """Poll /api/health rather than sleeping a fixed amount — importing torch can
     take 30s+ on a cold start."""
     health = f"{url}/api/health"
@@ -77,11 +105,156 @@ def _open_browser_when_ready(url, timeout=180):
         try:
             with urllib.request.urlopen(health, timeout=2) as resp:
                 if resp.status == 200:
-                    webbrowser.open(url)
-                    return
+                    return True
         except (urllib.error.URLError, OSError):
             time.sleep(0.4)
-    print(f"Server did not become healthy within {timeout}s; not opening browser.")
+    return False
+
+
+class _Server:
+    """uvicorn on a background thread, with somewhere for its errors to land.
+
+    It used to own the main thread. The window loop needs that instead — on
+    macOS the UI *must* be on the main thread — so the roles are swapped. The
+    thread is a daemon: closing the window ends the process and takes the
+    server with it, which is what stops the old habit of leaving uvicorn
+    running after the user thinks they have quit.
+    """
+
+    def __init__(self, port):
+        self.port = port
+        self.error = None
+        self.thread = threading.Thread(target=self._run, daemon=True)
+
+    def _run(self):
+        try:
+            import uvicorn
+            from web import app
+            uvicorn.run(app, host=HOST, port=self.port, log_level="info")
+        except Exception as e:
+            import traceback
+            traceback.print_exc()
+            self.error = f"{type(e).__name__}: {e}"
+
+    def start(self):
+        self.thread.start()
+        return self
+
+
+# pythonnet does not keep our delegates alive; a handler that gets collected
+# stops firing and WebView2 silently falls back to asking the user again.
+_PERMISSION_HANDLERS = []
+
+
+def _allow_microphone(window, url):
+    """Grant the page the microphone without ever asking.
+
+    pywebview only implements permission handling for its Qt backend; the
+    Windows one leaves it unhandled, so WebView2 puts up its own prompt — every
+    launch, because nothing records the answer. For an app whose whole purpose
+    is recording a meeting, a prompt that can be dismissed by mistake is a
+    failure mode, not a safeguard.
+
+    Two mechanisms, deliberately: the event handler covers whatever port the
+    server happened to get, and the profile write clears a Deny that an earlier
+    version may already have stored.
+    """
+    if sys.platform != "win32":
+        return False, "chi ap dung cho Windows"
+
+    from System import Action
+    from Microsoft.Web.WebView2.Core import (
+        CoreWebView2PermissionKind,
+        CoreWebView2PermissionState,
+    )
+    from webview.platforms.winforms import BrowserView
+
+    control = None
+    for _ in range(100):
+        browser = BrowserView.instances.get(window.uid)
+        if browser is not None and getattr(browser, "webview", None) is not None:
+            control = browser.webview
+            break
+        time.sleep(0.1)
+    if control is None:
+        return False, "khong tim thay control WebView2"
+
+    state = {}
+
+    def setup():
+        # Every CoreWebView2 member is UI-thread-only; touching it from here
+        # without the Invoke below raises InvalidOperationException.
+        try:
+            core = control.CoreWebView2
+            if core is None:
+                state["err"] = "CoreWebView2 chua khoi tao xong"
+                return
+
+            def on_permission(sender, args):
+                if args.PermissionKind == CoreWebView2PermissionKind.Microphone:
+                    args.State = CoreWebView2PermissionState.Allow
+                    try:
+                        args.SavesInProfile = True
+                    except Exception:
+                        pass
+
+            core.PermissionRequested += on_permission
+            _PERMISSION_HANDLERS.append(on_permission)
+
+            # Overrides a stored Deny. Permission is keyed by origin, and the
+            # origin includes the port, so this only covers the current run —
+            # the handler above is what makes it reliable.
+            try:
+                core.Profile.SetPermissionStateAsync(
+                    CoreWebView2PermissionKind.Microphone, url,
+                    CoreWebView2PermissionState.Allow,
+                )
+            except Exception as e:
+                state["profile_err"] = str(e)
+
+            state["ok"] = True
+        except Exception as e:
+            state["err"] = f"{type(e).__name__}: {e}"
+
+    for _ in range(30):
+        control.Invoke(Action(setup))
+        if state.get("ok"):
+            return True, state.get("profile_err", "")
+        time.sleep(0.3)
+    return False, state.get("err", "khong ro")
+
+
+def _run_native_window(url):
+    """Show the app in its own window. Returns when the user closes it."""
+    import webview
+
+    # Sized against the actual display, not a fixed guess. A hard 860px is taller
+    # than the usable area of a 1080p screen at 125% or 150% scaling — the window
+    # opened with its bottom off-screen and the buttons out of reach.
+    try:
+        screen = webview.screens[0]
+        sw, sh = int(screen.width), int(screen.height)
+    except Exception:
+        sw, sh = 1440, 900
+    width = max(760, min(1060, int(sw * 0.78)))
+    # 0.82 leaves room for the title bar and the taskbar, which the reported
+    # screen height includes.
+    height = max(560, min(820, int(sh * 0.82)))
+    print(f"window: {width}x{height} (man hinh {sw}x{sh})")
+
+    window = webview.create_window(
+        "Biên bản cuộc họp", url,
+        width=width, height=height,
+        min_size=(720, 540),
+    )
+
+    # pywebview hands the window to this callback, so it takes an argument even
+    # though the closure already has one.
+    def on_start(win):
+        ok, detail = _allow_microphone(win, url)
+        print(f"microphone permission: {'granted' if ok else 'NOT granted'} {detail}".strip())
+
+    webview.start(on_start, window)
 
 
 def _selftest():
@@ -106,7 +279,13 @@ def _selftest():
 
     def _torch():
         import torch
-        return f"{torch.__version__} (mps={torch.backends.mps.is_available()})"
+        available = []
+        mps = getattr(torch.backends, "mps", None)
+        if mps is not None and mps.is_available():
+            available.append("mps")
+        if torch.cuda.is_available():
+            available.append("cuda")
+        return f"{torch.__version__} ({'+'.join(available) or 'cpu only'})"
 
     def _chunkformer():
         import chunkformer
@@ -160,13 +339,47 @@ def _configured_model():
     return settings.get("CHUNKFORMER_MODEL")
 
 
+def _synthesise_speech(wav_path, phrase):
+    """Write `phrase` to a 16 kHz mono WAV using whatever TTS the OS ships.
+
+    Both engines are built in, so the transcribe selftest needs no fixture audio
+    committed to the repo. Note that Windows reads the Vietnamese phrase with an
+    English voice unless a Vietnamese one is installed — good enough, since what
+    is under test is the model, not the pronunciation.
+    """
+    if sys.platform == "darwin":
+        subprocess.run(
+            ["say", "-o", wav_path, "--data-format=LEI16@16000", phrase],
+            check=True, capture_output=True, timeout=120,
+        )
+    elif sys.platform == "win32":
+        script = (
+            "Add-Type -AssemblyName System.Speech; "
+            "$s = New-Object System.Speech.Synthesis.SpeechSynthesizer; "
+            "$fmt = New-Object System.Speech.AudioFormat.SpeechAudioFormatInfo("
+            "16000, [System.Speech.AudioFormat.AudioBitsPerSample]::Sixteen, "
+            "[System.Speech.AudioFormat.AudioChannel]::Mono); "
+            f"$s.SetOutputToWaveFile('{wav_path}', $fmt); "
+            f"$s.Speak('{phrase}'); $s.Dispose()"
+        )
+        subprocess.run(
+            ["powershell", "-NoProfile", "-NonInteractive", "-Command", script],
+            check=True, capture_output=True, timeout=120,
+        )
+    else:
+        raise RuntimeError(f"no TTS wired up for {sys.platform}")
+
+    if not os.path.exists(wav_path) or os.path.getsize(wav_path) == 0:
+        raise RuntimeError("TTS produced no audio")
+
+
 def _selftest_transcribe():
     """Transcribe real audio with the bundled model, with the network shut off.
 
     The import-only selftest proves libraries are present; this proves the app
-    actually works. Audio is synthesised with macOS `say`, and HF_HUB_OFFLINE is
-    forced on so a pass also proves the weights really shipped inside the bundle
-    rather than being quietly downloaded.
+    actually works. Audio is synthesised by the OS (see _synthesise_speech), and
+    HF_HUB_OFFLINE is forced on so a pass also proves the weights really shipped
+    inside the bundle rather than being quietly downloaded.
     """
     import subprocess
     import tempfile
@@ -194,12 +407,9 @@ def _selftest_transcribe():
     wav = os.path.join(tmp, "sample.wav")
     phrase = "Xin chào, đây là bản ghi thử nghiệm cho cuộc họp hôm nay."
     try:
-        subprocess.run(
-            ["say", "-o", wav, "--data-format=LEI16@16000", phrase],
-            check=True, capture_output=True, timeout=120,
-        )
+        _synthesise_speech(wav, phrase)
     except Exception as e:
-        print(f"  FAIL: could not synthesise audio with `say`: {e}")
+        print(f"  FAIL: could not synthesise test audio: {e}")
         return 1
     print(f"  input: {os.path.getsize(wav)} bytes of 16kHz PCM")
 
@@ -257,22 +467,45 @@ def main():
     url = f"http://{HOST}:{port}"
     print(f"Serving on {url}")
 
-    if os.getenv("MEETING_SUMMARIZER_NO_BROWSER") != "1":
-        threading.Thread(target=_open_browser_when_ready, args=(url,), daemon=True).start()
-
-    try:
-        import uvicorn
-        from web import app
-        uvicorn.run(app, host=HOST, port=port, log_level="info")
-    except Exception as e:
-        import traceback
-        traceback.print_exc()
+    server = _Server(port).start()
+    if not _wait_healthy(url):
         _alert(
             "Meeting Summarizer - Lỗi",
-            f"Ứng dụng không khởi động được:\n\n{e}\n\nChi tiết trong log:\n{log_path}",
+            "Ứng dụng không khởi động được:\n\n"
+            + (server.error or "máy chủ nội bộ không phản hồi")
+            + f"\n\nChi tiết trong log:\n{log_path}",
         )
         return 1
-    return 0
+
+    # Headless: used by the smoke tests and by anyone who would rather drive the
+    # app from their own browser.
+    if os.getenv("MEETING_SUMMARIZER_NO_BROWSER") == "1":
+        print("MEETING_SUMMARIZER_NO_BROWSER=1 — chỉ chạy máy chủ, không mở cửa sổ")
+        server.thread.join()
+        return 0
+
+    # macOS opens the browser, as it always has. pywebview is not in
+    # requirements-mac.txt, so its cocoa backend is not inside the .app at all;
+    # calling _run_native_window there would only write an ImportError traceback
+    # to the log before landing in the same fallback below.
+    if sys.platform != "win32":
+        print("Mở giao diện bằng trình duyệt mặc định")
+        webbrowser.open(url)
+        server.thread.join()
+        return 0
+
+    try:
+        _run_native_window(url)
+        return 0
+    except Exception as e:
+        # A machine without WebView2 should still get a working app rather than
+        # an error dialog, so fall back to the browser and say why in the log.
+        import traceback
+        traceback.print_exc()
+        print(f"Không mở được cửa sổ ứng dụng ({e}); dùng trình duyệt mặc định")
+        webbrowser.open(url)
+        server.thread.join()
+        return 0
 
 
 if __name__ == "__main__":

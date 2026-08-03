@@ -1,0 +1,231 @@
+===============================================================================
+                        MEETING SUMMARIZER
+                 Hướng dẫn sử dụng cho máy Windows
+===============================================================================
+
+Ứng dụng này ghi âm cuộc họp, tự động chuyển lời nói thành văn bản, rồi
+viết biên bản cuộc họp bằng tiếng Việt.
+
+Máy cần là Windows 10 hoặc Windows 11, loại 64-bit. Gần như mọi máy bán
+trong khoảng mười năm trở lại đây đều đạt.
+
+
+-------------------------------------------------------------------------------
+BƯỚC 1: CÀI ĐẶT
+-------------------------------------------------------------------------------
+
+  1. Nháy đúp vào file có tên dạng
+     MeetingSummarizer-1.0.0-win64-setup.exe
+
+  2. Windows sẽ hiện một bảng màu xanh đậm, đại ý là "Windows đã bảo vệ
+     máy tính của bạn" và chặn không cho chạy.
+
+     ĐÂY LÀ BÌNH THƯỜNG. Ứng dụng không có vấn đề gì. Windows chặn mọi
+     phần mềm không mua chứng nhận, kể cả phần mềm hoàn toàn lành.
+
+     Cách qua:
+       - Bấm dòng chữ nhỏ "More info" (hoặc "Thông tin thêm")
+       - Bấm nút "Run anyway" (hoặc "Vẫn chạy") vừa hiện ra
+
+  3. Bấm "Next" vài lần rồi bấm "Install".
+
+  4. Chờ. Bước này lâu, khoảng 3 đến 10 phút, vì ứng dụng khá nặng.
+     Thanh chạy có lúc đứng yên một lúc lâu là bình thường.
+
+  5. Bấm "Finish".
+
+Xong. Ứng dụng đã được cài.
+
+Nếu Windows hỏi mật khẩu quản trị mà bạn không có, cứ bấm "No" hoặc
+"Cancel" — ứng dụng vẫn cài được, chỉ là cài riêng cho tài khoản của bạn.
+
+
+-------------------------------------------------------------------------------
+BƯỚC 2: LẤY MÃ KHOÁ (MIỄN PHÍ)
+-------------------------------------------------------------------------------
+
+Ứng dụng cần một mã khoá của Google để viết biên bản. Mã này miễn phí.
+
+  1. Mở trình duyệt, vào địa chỉ:   https://aistudio.google.com/apikey
+  2. Đăng nhập bằng Gmail của bạn
+  3. Bấm nút "Create API key"
+  4. Một dãy chữ và số hiện ra, bắt đầu bằng "AIza..."
+  5. Sao chép toàn bộ dãy đó (bấm vào biểu tượng copy bên cạnh)
+
+Giữ dãy này lại, bước sau sẽ cần dán vào.
+
+
+-------------------------------------------------------------------------------
+BƯỚC 3: MỞ ỨNG DỤNG VÀ NHẬP MÃ KHOÁ
+-------------------------------------------------------------------------------
+
+Bấm nút Start ở góc dưới bên trái, gõ "Meeting", rồi bấm vào
+"Meeting Summarizer".
+
+Lần đầu mở sẽ lâu, khoảng 10 đến 30 giây mới thấy gì. Trong lúc đó màn
+hình không hiện gì cả. Đừng bấm mở lại nhiều lần, cứ chờ.
+
+Ứng dụng sẽ tự mở một trang trong trình duyệt.
+
+Bạn sẽ thấy một bảng màu vàng báo "Chưa cấu hình xong", và một nút hình
+bánh xe răng màu cam ở góc trên bên phải.
+
+  1. Bấm vào nút bánh xe răng
+  2. Dán mã khoá vào ô "Gemini API Key"
+  3. Bấm "Lưu"
+
+Bảng màu vàng biến mất là xong. Từ giờ dùng được.
+
+Mã khoá chỉ được lưu trên máy này. Muốn đổi mã khác sau này thì bấm lại
+nút bánh xe răng, dán mã mới, bấm Lưu.
+
+
+-------------------------------------------------------------------------------
+BƯỚC 4: GHI ÂM MỘT CUỘC HỌP
+-------------------------------------------------------------------------------
+
+  1. Gõ tên cuộc họp vào ô trên cùng (không bắt buộc)
+
+  2. Ô bên dưới, gõ chủ đề chính của cuộc họp (không bắt buộc)
+     Nếu bạn gõ, ứng dụng sẽ nhắc khi mọi người nói lạc sang chuyện khác.
+
+  3. Bấm nút tròn hình micro ở giữa
+
+  4. Lần đầu, trình duyệt hỏi có cho dùng micro không -> chọn "Allow"
+
+  5. Nói bình thường. Chữ sẽ hiện dần lên ngay trong lúc họp.
+
+  6. Họp xong, bấm lại nút micro để dừng.
+
+Sau khi dừng, ứng dụng viết biên bản. Chờ một lát là có.
+
+
+LƯU Ý QUAN TRỌNG:
+
+Lần nhận dạng đầu tiên sau khi mở ứng dụng sẽ chậm, khoảng 10 đến 30 giây
+mới thấy chữ đầu tiên. Ứng dụng KHÔNG bị treo, nó chỉ đang chuẩn bị. Từ
+lần thứ hai trở đi sẽ nhanh ngay.
+
+Chữ hiện lên theo từng đoạn, mỗi đoạn khoảng 10 giây một lần, chứ không
+hiện ngay từng chữ một. Đó là bình thường.
+
+
+-------------------------------------------------------------------------------
+BƯỚC 5: LẤY KẾT QUẢ
+-------------------------------------------------------------------------------
+
+Ngay trên trang có hai nút cho mỗi phần:
+  - "Sao chép"      : copy để dán vào Word, Zalo, email...
+  - "Tải xuống .md" : lưu thành file
+
+Ngoài ra ứng dụng cũng tự lưu sẵn vào máy, ở thư mục:
+
+      Documents  ->  MeetingSummarizer
+
+(Mở File Explorer, bấm "Documents" ở cột bên trái, vào thư mục
+MeetingSummarizer.)
+
+Mỗi cuộc họp có hai file: một file là toàn bộ lời nói, một file là biên bản.
+
+
+-------------------------------------------------------------------------------
+BƯỚC 6: TẮT ỨNG DỤNG
+-------------------------------------------------------------------------------
+
+Đóng tab trình duyệt KHÔNG làm ứng dụng tắt. Nó vẫn chạy ngầm và vẫn
+chiếm bộ nhớ.
+
+Ứng dụng này không có cửa sổ riêng, nên muốn tắt hẳn phải làm qua Task
+Manager:
+
+  1. Bấm đồng thời ba phím  Ctrl + Shift + Esc
+  2. Ở thẻ "Processes", tìm dòng "MeetingSummarizer"
+  3. Bấm chuột phải vào nó, chọn "End task"
+
+Nếu bạn định họp tiếp trong ngày thì cứ để nó chạy — lần sau mở lại sẽ
+nhanh hơn nhiều.
+
+
+-------------------------------------------------------------------------------
+KHI GẶP LỖI
+-------------------------------------------------------------------------------
+
+* Bấm micro rồi mà không thấy chữ nào hiện ra
+
+  Kiểm tra xem đã cho phép dùng micro chưa:
+  Start > Settings > Privacy & security > Microphone
+  Bật "Microphone access", và bật cho trình duyệt bạn đang dùng.
+
+  Cũng thử nói to hơn và ngồi gần micro hơn.
+
+
+* Mở ứng dụng nhưng trình duyệt không tự hiện ra
+
+  Chờ đủ 30 giây đã. Nếu vẫn không thấy, tự mở trình duyệt và gõ:
+
+      127.0.0.1:8000
+
+  Nếu địa chỉ đó không ra gì, thử lần lượt 8001, 8002 — ứng dụng tự đổi
+  số khi cổng cũ đang bận.
+
+
+* Có chữ rồi nhưng không ra biên bản
+
+  Phần viết biên bản cần có mạng internet và cần mã khoá đúng.
+  Kiểm tra mạng, rồi bấm nút bánh xe răng xem mã khoá còn đúng không.
+
+  Phần lời nói đã nhận dạng vẫn được lưu đầy đủ, không mất.
+
+
+* Báo lỗi vượt giới hạn
+
+  Mã khoá miễn phí có hạn mức mỗi ngày. Đợi vài phút rồi thử lại.
+
+  Nếu hay bị, hãy để trống ô "chủ đề cuộc họp" ở bước 4. Tính năng nhắc
+  lạc chủ đề là thứ dùng nhiều hạn mức nhất.
+
+
+* Nhận dạng quá chậm
+
+  Bản Windows chạy nhận dạng bằng CPU. Máy càng cũ càng chậm. Nếu chậm
+  tới mức không dùng được, có thể chuyển sang nhận dạng qua mạng: bấm
+  nút bánh xe răng, đổi "Nhận dạng giọng nói" sang "groq", rồi dán thêm
+  một mã khoá Groq miễn phí lấy ở https://console.groq.com
+
+  Cách này nhanh hơn nhiều, nhưng âm thanh cuộc họp sẽ được gửi lên mạng.
+
+
+* Vẫn không được
+
+  Có một file ghi lại lỗi, gửi file này cho người hỗ trợ bạn:
+
+  Bấm đồng thời hai phím  Windows + R
+  Dán dòng này vào rồi bấm Enter:
+
+      %APPDATA%\MeetingSummarizer
+
+  File cần gửi tên là  launcher.log
+
+
+-------------------------------------------------------------------------------
+VÀI ĐIỀU NÊN BIẾT
+-------------------------------------------------------------------------------
+
+* Phần nhận dạng giọng nói chạy hoàn toàn trên máy bạn. Âm thanh cuộc họp
+  KHÔNG được gửi lên mạng. Bạn có thể ghi âm khi không có internet.
+
+* Chỉ phần văn bản đã nhận dạng mới được gửi cho Google để viết biên bản.
+  Bước này cần internet. Nếu cuộc họp có nội dung cần giữ kín, hãy cân
+  nhắc điều này.
+
+* Ứng dụng mở ra trong trình duyệt. Đó là thiết kế bình thường, không
+  phải lỗi.
+
+* Gỡ ứng dụng bằng Start > Settings > Apps > Installed apps > Meeting
+  Summarizer > Uninstall. Việc gỡ KHÔNG xoá biên bản đã lưu trong
+  Documents, cũng không xoá mã khoá đã nhập.
+
+* Ứng dụng không tự cập nhật. Muốn dùng bản mới thì tải file setup mới và
+  cài đè lên bản cũ.
+
+===============================================================================

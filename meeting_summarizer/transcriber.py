@@ -10,7 +10,19 @@ reuse it. Building a new Transcriber per audio chunk reloads several hundred
 megabytes of weights from disk every time.
 """
 import os
+import threading
 import time
+
+# One loaded model per process, shared by every recording session. Loading takes
+# the best part of ten seconds, and it used to be paid again on every press of
+# Record — exactly the window in which the first lines of live text should be
+# appearing on screen.
+_ENGINE_CACHE = {}
+_ENGINE_CACHE_LOCK = threading.Lock()
+# Serialises inference on the shared model. Decoding runs an order of magnitude
+# faster than real time, so making a second session queue costs far less than
+# loading it a second copy of the weights.
+_ENGINE_USE_LOCK = threading.Lock()
 
 
 class Transcriber:
@@ -59,6 +71,17 @@ class Transcriber:
         print(f"  {self.model} is not bundled; downloading on first use")
         return self.model
 
+    def warmup(self):
+        """Load the local model now rather than on the first chunk.
+
+        Loading takes as long as it takes to read several hundred megabytes off
+        disk. Paid on the first chunk, it delayed the first line of live text by
+        that much; paid at the start of a session, it overlaps the first few
+        seconds of speech instead.
+        """
+        if self.mode == "chunkformer":
+            self._get_chunkformer()
+
     def transcribe_file(self, filepath: str) -> str:
         if not filepath:
             return ""
@@ -96,33 +119,43 @@ class Transcriber:
         if self._engine is not None:
             return self._engine
 
-        try:
-            from app_paths import hf_cache_dir
-            os.environ.setdefault("HF_HOME", hf_cache_dir())
-        except Exception:
-            pass
-        os.environ.setdefault("PYTORCH_ENABLE_MPS_FALLBACK", "1")
+        # Held across the load so two sessions starting at once wait for one
+        # copy of the weights instead of reading two.
+        with _ENGINE_CACHE_LOCK:
+            cached = _ENGINE_CACHE.get(self.model)
+            if cached is not None:
+                self._engine = cached
+                return cached
 
-        from chunkformer import ChunkFormerModel
+            try:
+                from app_paths import hf_cache_dir
+                os.environ.setdefault("HF_HOME", hf_cache_dir())
+            except Exception:
+                pass
+            os.environ.setdefault("PYTORCH_ENABLE_MPS_FALLBACK", "1")
 
-        source = self._resolve_model_source()
-        device = "cpu" if self._force_cpu else self._select_device()
+            from chunkformer import ChunkFormerModel
 
-        def build(dev):
-            print(f"  Loading ChunkFormer {self.model} on device={dev}")
-            return ChunkFormerModel.from_pretrained(source).to(dev)
+            source = self._resolve_model_source()
+            device = "cpu" if self._force_cpu else self._select_device()
 
-        try:
-            self._engine = build(device)
-        except Exception as e:
-            if device == "cpu":
-                raise
-            # Metal can be reported as available yet fail to allocate — that is
-            # exactly what happens on virtualised Macs. CPU is slower but always
-            # works, and a slow transcript beats none.
-            print(f"  {device} failed ({type(e).__name__}: {e}); retrying on CPU")
-            self._force_cpu = True
-            self._engine = build("cpu")
+            def build(dev):
+                print(f"  Loading ChunkFormer {self.model} on device={dev}")
+                return ChunkFormerModel.from_pretrained(source).to(dev)
+
+            try:
+                self._engine = build(device)
+            except Exception as e:
+                if device == "cpu":
+                    raise
+                # Metal can be reported as available yet fail to allocate — that
+                # is exactly what happens on virtualised Macs. CPU is slower but
+                # always works, and a slow transcript beats none.
+                print(f"  {device} failed ({type(e).__name__}: {e}); retrying on CPU")
+                self._force_cpu = True
+                self._engine = build("cpu")
+
+            _ENGINE_CACHE[self.model] = self._engine
         return self._engine
 
     @staticmethod
@@ -150,16 +183,17 @@ class Transcriber:
         for attempt in range(3):
             try:
                 model = self._get_chunkformer()
-                out = model.endless_decode(
-                    audio_path=filepath,
-                    chunk_size=64,
-                    left_context_size=128,
-                    right_context_size=128,
-                    # Caps how much audio is batched at once. Our clips are
-                    # seconds long, so this only matters for uploaded files.
-                    total_batch_duration=1800,
-                    return_timestamps=False,
-                )
+                with _ENGINE_USE_LOCK:
+                    out = model.endless_decode(
+                        audio_path=filepath,
+                        chunk_size=64,
+                        left_context_size=128,
+                        right_context_size=128,
+                        # Caps how much audio is batched at once. Our clips are
+                        # seconds long, so this only matters for uploaded files.
+                        total_batch_duration=1800,
+                        return_timestamps=False,
+                    )
                 return self._flatten_chunkformer_output(out)
             except Exception as e:
                 print(f"  ChunkFormer attempt {attempt + 1} failed: {e}")
@@ -169,6 +203,10 @@ class Transcriber:
                     print("  Rebuilding ChunkFormer on CPU for the retry")
                     self._force_cpu = True
                     self._engine = None
+                    # Evict the broken engine, or every other session keeps
+                    # being handed the copy that just failed.
+                    with _ENGINE_CACHE_LOCK:
+                        _ENGINE_CACHE.pop(self.model, None)
                 if attempt < 2:
                     time.sleep(2)
         return ""
