@@ -5,6 +5,7 @@ read-only once installed, so this is the only writable place for them, and it is
 also what survives an app upgrade.
 """
 import os
+import re
 import sys
 
 from dotenv import load_dotenv
@@ -24,7 +25,13 @@ FIELDS = {
 }
 
 DEFAULTS = {
-    "GEMINI_MODEL": "gemini-2.5-flash",
+    # An alias, not a version. Google retires model names on its own schedule
+    # and gates the old ones by project age: a key created today is refused
+    # gemini-2.5-flash-lite outright ("no longer available to new users") while
+    # a key made a few months ago still uses it. A name pinned inside a shipped
+    # .dmg cannot be corrected afterwards, so point at the moving target Google
+    # maintains for exactly this.
+    "GEMINI_MODEL": "gemini-flash-latest",
     # Offline by default: the ChunkFormer weights ship inside the app, so this
     # works with no transcription API key and no download.
     "WHISPER_PROVIDER": "chunkformer",
@@ -39,10 +46,22 @@ CHOICES = {
         "khanhld/chunkformer-ctc-large-vie",
         "khanhld/chunkformer-rnnt-large-vie",
     ),
-    # Only Flash tiers remain on Gemini's free plan; Pro was removed from it in
-    # April 2026.
-    "GEMINI_MODEL": ("gemini-2.5-flash", "gemini-2.5-flash-lite"),
 }
+
+# GEMINI_MODEL is deliberately not in CHOICES. A closed set here means the app
+# rejects any model Google ships after this build was cut, and refusing a name
+# the user's own key accepts is worse than passing through one it does not: the
+# API's own 404 says more than we could. The Settings screen asks the key what
+# it can reach (/api/gemini-models) and only falls back to these when that call
+# cannot be made.
+GEMINI_MODEL_SUGGESTIONS = (
+    "gemini-flash-latest",
+    "gemini-flash-lite-latest",
+)
+
+# Model ids are lowercase, digits, dots and dashes — enough to catch a pasted
+# sentence or a stray newline without pretending to know the catalogue.
+_MODEL_ID = re.compile(r"[a-z0-9][a-z0-9.\-]{2,63}")
 
 # Values shipped in .env.example. Treated as "not configured" so a user who never
 # edited the template does not get a confusing auth error from the API instead.
@@ -66,7 +85,8 @@ _COMMENTS = {
     "OPENAI_API_KEY": "# Only for WHISPER_PROVIDER=openai. https://platform.openai.com/api-keys",
     "GROQ_API_KEY": "# Only for WHISPER_PROVIDER=groq. Free: https://console.groq.com",
     "HF_TOKEN": "# Optional. Only needed for gated HuggingFace models.",
-    "GEMINI_MODEL": "# gemini-2.5-flash | gemini-2.5-flash-lite (both on the free tier)",
+    "GEMINI_MODEL": "# gemini-flash-latest tracks whatever Flash is current.\n"
+                    "# Any id the key can reach works: aistudio.google.com/models",
     "WHISPER_PROVIDER": "# chunkformer (offline, bundled, no key) | openai | groq",
     "CHUNKFORMER_MODEL": "# ctc is faster; rnnt may read more naturally. Only the\n"
                          "# bundled one works offline.",
@@ -130,6 +150,9 @@ def public_state():
     return {
         "fields": state,
         "choices": {k: list(v) for k, v in CHOICES.items()},
+        # Not choices: the UI offers these, and accepts anything else the key
+        # turns out to support.
+        "suggestions": {"GEMINI_MODEL": list(GEMINI_MODEL_SUGGESTIONS)},
         "config_path": config_path(),
         "ready": readiness(),
     }
@@ -158,6 +181,8 @@ def validate(updates):
             continue
         if name in CHOICES and value and value not in CHOICES[name]:
             errors.append(f"{name} phải là một trong: {', '.join(CHOICES[name])}")
+        if name == "GEMINI_MODEL" and value and not _MODEL_ID.fullmatch(str(value).strip()):
+            errors.append("GEMINI_MODEL không giống tên model, ví dụ: gemini-flash-latest")
         if "\n" in str(value) or "\r" in str(value):
             errors.append(f"{name} không được chứa xuống dòng")
     return errors

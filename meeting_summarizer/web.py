@@ -27,6 +27,7 @@ for _stream in (sys.stdout, sys.stderr):
 settings.load()
 
 from transcriber import Transcriber
+import summarizer as summarizer_mod
 from summarizer import Summarizer
 
 SAMPLE_RATE = 16000
@@ -97,7 +98,12 @@ def _explain_summary_error(exc):
     if "permission" in msg or "403" in msg:
         return "Mã khoá Gemini không có quyền dùng model này. Thử tạo khoá mới tại aistudio.google.com/apikey."
     if "not found" in msg or "404" in msg:
-        return f"Không tìm thấy model '{model}'. Mở Cài đặt (⚙) và chọn model khác."
+        # Almost always the key rather than the name: Google closes older models
+        # to newly created projects, so the same id keeps working for a colleague
+        # whose key is a few months older.
+        return (f"Khoá Gemini này không dùng được model '{model}' — Google chỉ cấp "
+                f"model cũ cho khoá tạo từ trước. Mở Cài đặt (⚙) và chọn model khác "
+                f"trong danh sách.")
     if "quota" in msg or "resource_exhausted" in msg or "429" in msg or "rate limit" in msg:
         return "Đã vượt hạn mức miễn phí của Gemini. Đợi vài phút rồi thử lại, hoặc đổi sang Flash Lite trong Cài đặt (⚙)."
     if "deadline" in msg or "timeout" in msg or "connection" in msg or "network" in msg or "resolve" in msg:
@@ -270,19 +276,16 @@ The latest thing someone said: "{chunk}"
 Respond in JSON only:
 {{"on_topic": true/false, "topic": "what they are talking about", "suggestion": "brief one-line suggestion if off-topic, empty string if on-topic"}}"""
     try:
-        from google.genai import types
         # The SDK call is synchronous; awaited on the event loop it would stop
         # the socket being read for as long as Gemini takes to answer.
-        response = await asyncio.to_thread(
-            lambda: client.models.generate_content(
-                model=model,
-                contents=prompt,
-                config=types.GenerateContentConfig(
-                    response_mime_type="application/json",
-                    temperature=0,
-                    max_output_tokens=512,
-                    thinking_config=types.ThinkingConfig(thinking_budget=0),
-                ),
+        # summarizer.generate carries the retries for a retired model and for a
+        # thinking option this model's generation does not accept.
+        response, _ = await asyncio.to_thread(
+            lambda: summarizer_mod.generate(
+                client, model, prompt,
+                response_mime_type="application/json",
+                temperature=0,
+                max_output_tokens=512,
             )
         )
         return json.loads(response.text)
@@ -310,6 +313,46 @@ async def health():
 async def read_settings():
     """Secrets come back masked — the browser never receives a usable key."""
     return settings.public_state()
+
+
+# Names that answer generateContent but are no use for writing minutes.
+_MODEL_NOISE = (
+    "embedding", "image", "tts", "audio", "veo", "lyria", "nano-banana",
+    "computer-use", "deep-research", "live", "vision", "aqa", "learnlm",
+)
+
+
+@app.get("/api/gemini-models")
+async def gemini_models():
+    """Which models this particular key can actually reach.
+
+    Not a fixed list, because the answer differs per key: Google closes older
+    models to newly created projects, so a name that works for one user 404s for
+    the person next to them. Asking is the only way to be right, and it keeps a
+    shipped build usable after the catalogue moves on.
+    """
+    if not settings.is_set("GEMINI_API_KEY"):
+        return {"models": [], "error": "Chưa có Gemini API Key"}
+    try:
+        client = get_gemini_client()
+        names = []
+        for m in await asyncio.to_thread(lambda: list(client.models.list())):
+            name = (getattr(m, "name", "") or "").replace("models/", "")
+            actions = getattr(m, "supported_actions", None)
+            if actions and "generateContent" not in actions:
+                continue
+            if not name or any(bad in name for bad in _MODEL_NOISE):
+                continue
+            if "flash" not in name and "pro" not in name:
+                continue
+            names.append(name)
+    except Exception as e:
+        return {"models": [], "error": str(e)}
+
+    # Aliases first — they are the ones that keep working — then newest first,
+    # which for Gemini's naming is plain reverse alphabetical.
+    names.sort(key=lambda n: (0 if n.endswith("-latest") else 1, [-ord(c) for c in n]))
+    return {"models": names}
 
 
 @app.post("/api/settings")

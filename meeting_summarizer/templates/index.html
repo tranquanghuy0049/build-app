@@ -593,11 +593,12 @@
 
     <div class="field">
       <label>Model Gemini</label>
-      <select id="set_GEMINI_MODEL">
-        <option value="gemini-2.5-flash">Flash — cân bằng, miễn phí</option>
-        <option value="gemini-2.5-flash-lite">Flash Lite — nhẹ hơn, đỡ chạm giới hạn</option>
-      </select>
-      <div class="hint">Gói miễn phí giới hạn khoảng 15 yêu cầu/phút.</div>
+      <select id="set_GEMINI_MODEL"></select>
+      <div class="hint" id="hint_GEMINI_MODEL">
+        Danh sách lấy từ chính khoá của bạn. <strong>gemini-flash-latest</strong>
+        luôn trỏ tới bản Flash mới nhất nên không bao giờ hết hạn.
+        Gói miễn phí giới hạn khoảng 15 yêu cầu/phút.
+      </div>
     </div>
 
     <div class="field">
@@ -936,10 +937,47 @@
     }
   }
 
+  // Gemini's catalogue outlives no build: Google retires ids and refuses the
+  // older ones to keys made after a certain date, so two people running the same
+  // .dmg do not see the same list. Ask the key; fall back to what the server
+  // suggests when there is no key yet or the call fails.
+  async function fillModelOptions(state) {
+    const select = document.getElementById('set_GEMINI_MODEL');
+    const current = (state.fields.GEMINI_MODEL || {}).value || '';
+    let models = [], failed = '';
+    try {
+      const r = await fetch('/api/gemini-models');
+      const data = await r.json();
+      models = data.models || [];
+      failed = data.error || '';
+    } catch (e) { failed = e.message; }
+
+    if (!models.length) models = ((state.suggestions || {}).GEMINI_MODEL) || [];
+    // Whatever is stored belongs in the list even if the key cannot reach it,
+    // or opening Settings would silently rewrite the user's choice.
+    if (current && !models.includes(current)) models.unshift(current);
+
+    select.innerHTML = '';
+    models.forEach(name => {
+      const opt = document.createElement('option');
+      opt.value = name;
+      opt.textContent = name.endsWith('-latest') ? name + ' — luôn là bản mới nhất' : name;
+      select.appendChild(opt);
+    });
+    const hint = document.getElementById('hint_GEMINI_MODEL');
+    if (hint && !hint.dataset.base) hint.dataset.base = hint.innerHTML;
+    if (hint) {
+      hint.innerHTML = failed
+        ? 'Chưa hỏi được danh sách model từ khoá (' + failed + '). Đang hiện danh sách dự phòng.'
+        : hint.dataset.base;
+    }
+  }
+
   async function openSettings() {
     settingsMsg.className = 'modal-msg';
     const state = await refreshSettings();
     if (!state) { showError('Không đọc được cài đặt'); return; }
+    await fillModelOptions(state);
     PLAIN_FIELDS.forEach(n => {
       const el = document.getElementById('set_' + n);
       if (el && state.fields[n]) el.value = state.fields[n].value;
