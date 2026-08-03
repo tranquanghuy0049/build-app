@@ -83,16 +83,43 @@ if [ -f "$SRC_DIR/HUONG_DAN_SU_DUNG.txt" ]; then
   cp "$SRC_DIR/HUONG_DAN_SU_DUNG.txt" "$STAGING/"
 fi
 
-rm -f "$DMG_PATH"
 # ULMO (LZMA) rather than the usual UDZO (zlib): the payload is uncompressed
 # dylibs and model weights, so the better ratio takes a real bite out of the
 # download. Costs build time and needs macOS 10.15+, which our 11.0 minimum
 # already exceeds.
-hdiutil create \
-  -volname "Meeting Summarizer" \
-  -srcfolder "$STAGING" \
-  -ov -format ULMO \
-  "$DMG_PATH"
+create_dmg() {
+  rm -f "$DMG_PATH"
+  hdiutil create \
+    -volname "Meeting Summarizer" \
+    -srcfolder "$STAGING" \
+    -ov -format "$1" \
+    "$DMG_PATH"
+}
+
+# hdiutil intermittently fails "Resource busy" on the CI runners, several
+# minutes into compressing a 2.5 GB image, with a diskimages-helper left
+# running behind it. Nothing about the build causes it and nothing about the
+# build can prevent it — so clean up after it and try again rather than throwing
+# away a bundle that took nine minutes to produce and passed its signature
+# check.
+dmg_built=""
+for attempt in 1 2 3; do
+  if create_dmg ULMO; then
+    dmg_built=1
+    break
+  fi
+  echo "==> hdiutil hỏng (lần $attempt) — dọn dẹp rồi thử lại"
+  hdiutil detach "/Volumes/Meeting Summarizer" -force 2>/dev/null || true
+  pkill -f diskimages-helper 2>/dev/null || true
+  sleep 20
+done
+
+# UDZO is the older, far more widely exercised code path. A dmg a couple of
+# hundred megabytes larger beats no dmg at all.
+if [ -z "$dmg_built" ]; then
+  echo "==> ULMO không đóng gói được sau 3 lần; quay về UDZO"
+  create_dmg UDZO
+fi
 
 echo
 echo "==> Done"
