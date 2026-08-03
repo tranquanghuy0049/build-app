@@ -70,11 +70,21 @@ jobs:
           if (-not $exe) { throw "No installer in dist\ — Inno Setup did not run" }
           $exe | ForEach-Object { "{0}  {1} MB" -f $_.Name, [math]::Round($_.Length/1MB) }
 
+      # Start-Process -Wait, not `&`: the bundle is a windowed exe, and PowerShell
+      # hands control straight back for those rather than waiting — the first
+      # version of this step read a stale $LASTEXITCODE while the app was still
+      # importing torch. A windowed bundle also has no stdout to inherit, so
+      # everything the selftest prints goes to launcher.log and has to be fetched
+      # from there; without it a failure here says only "exit 1".
       - name: Dependency selftest
         working-directory: meeting_summarizer
         run: |
-          & dist\MeetingSummarizer\MeetingSummarizer.exe --selftest
-          if ($LASTEXITCODE -ne 0) { throw "selftest failed" }
+          $log = "$env:APPDATA\MeetingSummarizer\launcher.log"
+          if (Test-Path $log) { Remove-Item $log }
+          $p = Start-Process -FilePath dist\MeetingSummarizer\MeetingSummarizer.exe `
+                 -ArgumentList '--selftest' -Wait -PassThru -NoNewWindow
+          if (Test-Path $log) { Get-Content $log }
+          if ($p.ExitCode -ne 0) { throw "selftest failed (exit $($p.ExitCode))" }
 
       # Not allowed to fail the build: this one needs a text-to-speech voice
       # installed to synthesise its test audio, and a Windows Server image is not
@@ -83,8 +93,12 @@ jobs:
         working-directory: meeting_summarizer
         continue-on-error: true
         run: |
-          & dist\MeetingSummarizer\MeetingSummarizer.exe --selftest-transcribe
-          if ($LASTEXITCODE -ne 0) { throw "transcribe selftest failed" }
+          $log = "$env:APPDATA\MeetingSummarizer\launcher.log"
+          if (Test-Path $log) { Remove-Item $log }
+          $p = Start-Process -FilePath dist\MeetingSummarizer\MeetingSummarizer.exe `
+                 -ArgumentList '--selftest-transcribe' -Wait -PassThru -NoNewWindow
+          if (Test-Path $log) { Get-Content $log }
+          if ($p.ExitCode -ne 0) { throw "transcribe selftest failed (exit $($p.ExitCode))" }
 
       - uses: actions/upload-artifact@v4
         with:
