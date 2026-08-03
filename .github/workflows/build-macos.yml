@@ -12,21 +12,20 @@ on:
       - "v*"
 
 jobs:
+  # Apple Silicon only, deliberately.
+  #
+  # There used to be a second leg on macos-13 for Intel. GitHub has retired its
+  # hosted Intel macOS runners, so that leg no longer gets scheduled at all: it
+  # sat in the queue for the full 24-hour limit and then failed the whole run —
+  # including the release step — even though the arm64 dmg had been built
+  # successfully in eleven minutes.
+  #
+  # packaging/build_macos.sh still keeps its x86_64 branch (torch pinned to
+  # 2.2.2, the last macOS Intel wheel), so anyone with a physical Intel Mac can
+  # produce that dmg by running the script there. See MACOS.md.
   build:
-    strategy:
-      # Keep going if only one architecture fails — Intel is the fragile one.
-      fail-fast: false
-      matrix:
-        include:
-          - runner: macos-14
-            arch: arm64
-            label: "Apple Silicon (M1/M2/M3/M4)"
-          - runner: macos-13
-            arch: x86_64
-            label: "Intel"
-
-    name: ${{ matrix.label }}
-    runs-on: ${{ matrix.runner }}
+    name: Apple Silicon (M1/M2/M3/M4)
+    runs-on: macos-14
     timeout-minutes: 90
 
     # Required by the release step: without it the default token is read-only
@@ -59,7 +58,7 @@ jobs:
 
       - uses: actions/upload-artifact@v4
         with:
-          name: MeetingSummarizer-macos-${{ matrix.arch }}
+          name: MeetingSummarizer-macos-arm64
           path: meeting_summarizer/dist/*.dmg
           if-no-files-found: error
           # The payload is mostly already-compressed torch dylibs.

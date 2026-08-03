@@ -3,28 +3,32 @@
 Bản macOS được build trên GitHub Actions (runner macOS thật), vì PyInstaller
 không cross-compile — không có cách nào tạo `.app` từ máy Windows.
 
-Sản phẩm: `MeetingSummarizer-<version>-arm64.dmg` (Apple Silicon) và
-`MeetingSummarizer-<version>-x86_64.dmg` (Intel).
+Sản phẩm: `MeetingSummarizer-<version>-arm64.dmg` — chạy trên Mac Apple Silicon
+(M1/M2/M3/M4), tức mọi máy Mac bán ra từ cuối 2020.
+
+Bản Intel (`-x86_64.dmg`) **không còn build được trên GitHub**: GitHub đã ngừng
+runner macOS Intel, job Intel nằm chờ hết 24 giờ rồi kéo cả run thành *failed*
+dù bản arm64 đã xong sau 11 phút. Nếu vẫn cần bản Intel, chạy
+`bash packaging/build_macos.sh` ngay trên một máy Mac Intel — script vẫn giữ
+nhánh x86_64 (ghim `torch==2.2.2`).
 
 ---
 
 ## 1. Đưa code lên GitHub
 
-Thư mục hiện tại chưa phải git repo:
+Repo đã có sẵn (`origin`), nên chỉ cần đẩy thay đổi:
 
 ```powershell
 cd c:\Project\record_meeting-main
-git init
-git add .
-git commit -m "Add macOS build pipeline"
-git branch -M main
-git remote add origin https://github.com/<user>/<repo>.git
-git push -u origin main
+git add -A
+git commit -m "..."
+git push origin main
 ```
 
 Kiểm tra trước khi push: `git status` **không được** liệt kê
-`meeting_summarizer/.env` hay `meeting_summarizer.zip` (file zip có chứa `.env`
-với API key thật — đã thêm vào `.gitignore`).
+`meeting_summarizer/.env`, `meeting_summarizer.zip` (file zip có chứa `.env` với
+API key thật), thư mục `Meeting Summarizer/` hay `models/` — tất cả đã nằm trong
+`.gitignore`. Riêng hai thứ sau nặng ~700 MB mỗi thứ và GitHub sẽ từ chối.
 
 ## 2. Chạy build
 
@@ -38,9 +42,9 @@ git tag v1.0.0
 git push origin v1.0.0
 ```
 
-Push tag sẽ build **và** tự tạo GitHub Release đính kèm 2 file `.dmg`.
+Push tag sẽ build **và** tự tạo GitHub Release đính kèm file `.dmg`.
 
-Mỗi build mất khoảng **40–70 phút** (phần lớn là PyInstaller gom torch).
+Mỗi build mất khoảng **10–20 phút** trên runner Apple Silicon.
 
 > ⚠️ **Chi phí runner**: runner macOS tính **10×** phút so với Linux. Repo
 > **private** với free tier 2000 phút/tháng chỉ đủ khoảng **3 build**/tháng.
@@ -50,10 +54,11 @@ Mỗi build mất khoảng **40–70 phút** (phần lớn là PyInstaller gom t
 ## 3. Tải kết quả
 
 Vào trang run vừa chạy → mục **Artifacts** ở cuối → tải
-`MeetingSummarizer-macos-arm64` (hoặc `-x86_64`).
+`MeetingSummarizer-macos-arm64`.
 
-Cách chọn kiến trúc: trên Mac vào  → About This Mac. Nếu ghi *Apple M1/M2/M3/M4*
-→ dùng bản **arm64**. Nếu ghi *Intel* → bản **x86_64**.
+Kiểm tra máy đích trước khi gửi cho người dùng: trên Mac vào  → About This Mac.
+Ghi *Apple M1/M2/M3/M4* → dùng được. Ghi *Intel* → phải build riêng trên máy đó
+(xem đầu tài liệu).
 
 ---
 
@@ -201,18 +206,19 @@ Workflow có sẵn 3 lớp kiểm tra, đọc log của bước bị đỏ:
    hoặc vòng `collect_all` trong `packaging/MeetingSummarizer.spec`.
 3. **Smoke test → /api/health** — server không lên; log `launcher.log` được in ra.
 
-Chạy lại chỉ một kiến trúc: workflow đặt `fail-fast: false` nên bản arm64 vẫn
-build xong kể cả khi bản Intel hỏng.
-
 ### Giới hạn đã biết
 
-- **Intel Mac ghim `torch==2.2.2`** — PyTorch không còn phát hành wheel macOS
-  x86_64 từ 2.3.0. Nếu sau này `transformers` yêu cầu torch mới hơn, bản Intel
-  sẽ phải bỏ PhoWhisper và chỉ dùng API.
-- **`.app` khoảng 2–2.5GB**, `.dmg` khoảng 1–1.3GB. Gần hết là torch. Muốn nhỏ
-  hơn nhiều (~80MB) thì bỏ PhoWhisper và chỉ dùng OpenAI/Groq API.
-- **Không universal binary** — torch không có wheel `universal2`, nên bắt buộc
-  hai bản riêng.
+- **Chỉ build được Apple Silicon trên GitHub** — runner macOS Intel đã bị gỡ.
+  Bản Intel phải build tay trên một máy Mac Intel bằng
+  `bash packaging/build_macos.sh`, và ở đó `torch` bị ghim `2.2.2` vì PyTorch
+  không còn phát hành wheel macOS x86_64 từ 2.3.0.
+- **`.app` khoảng 2–2.5GB**, `.dmg` khoảng 800MB. Gần hết là torch và model
+  ChunkFormer. Muốn nhỏ hơn nhiều (~80MB) thì bỏ model local, chỉ dùng
+  OpenAI/Groq API.
+- **Không universal binary** — torch không có wheel `universal2`, nên arm64 và
+  Intel bắt buộc là hai bản riêng.
+- **Bản macOS mở giao diện bằng trình duyệt mặc định**, khác bản Windows đã
+  chuyển sang cửa sổ riêng (pywebview + WebView2). Xem đầu `launcher.py`.
 - Bản CLI (`main.py` + `recorder.py`) **không** nằm trong bundle macOS; nó vẫn
   chỉ dùng cho Windows.
 
