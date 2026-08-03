@@ -394,11 +394,18 @@ def _selftest():
         # wrong, or a cocoa backend PyInstaller failed to collect, fails right
         # here — on a real Mac, inside the real bundle.
         def _window():
-            import webview
+            import webview  # noqa: F401 - the import itself is the check
             ok, detail = _install_macos_media_permission()
             if not ok:
                 raise RuntimeError(detail)
-            return f"pywebview {webview.__version__}, quyền micro cài được"
+            # pywebview exposes no __version__, and its dist-info is not among
+            # the metadata the spec copies, so treat the version as a nicety.
+            try:
+                from importlib.metadata import version
+                installed = version("pywebview")
+            except Exception:
+                installed = "?"
+            return f"pywebview {installed}, quyền micro cài được {detail}".strip()
 
         check("cửa sổ ứng dụng", _window)
 
